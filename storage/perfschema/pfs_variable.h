@@ -605,6 +605,7 @@ public:
   ulonglong get_sysvar_hash_version(void) { return m_version; }
   ~PFS_system_variable_cache() { free_mem_root(); }
 
+  typedef void (PFS_system_variable_cache::* Request_func)(uint);
 private:
   /* Build SHOW_var array. */
   bool init_show_var_array(enum_var_type scope, bool strict);
@@ -620,6 +621,11 @@ private:
   int do_materialize_session(PFS_thread *thread);
   /* Single variable -  PFS_thread */
   int do_materialize_session(PFS_thread *pfs_thread, uint index);
+
+  int make_call(Request_func func, uint param);
+
+  void refresh_vars(uint all);
+  void refresh_one_var(uint);
 
   /* Temporary mem_root to use for materialization. */
   MEM_ROOT m_mem_sysvar;
