@@ -3,6 +3,8 @@
 #
 create table t1 (a int);
 create temporary table t1 AS SELECT 1;
+Warnings:
+Note	1050	Table 't1' already exists
 create temporary table t1 AS SELECT 1;
 ERROR 42S01: Table 't1' already exists
 create temporary table t1 (a int);
@@ -21,6 +23,8 @@ drop temporary table t1;
 CREATE TABLE t1 (c int not null, d char (10) not null);
 insert into t1 values(1,""),(2,"a"),(3,"b");
 CREATE TEMPORARY TABLE t1 (a int not null, b char (10) not null);
+Warnings:
+Note	1050	Table 't1' already exists
 insert into t1 values(4,"e"),(5,"f"),(6,"g");
 alter table t1 rename t2;
 select * from t1;
@@ -41,6 +45,8 @@ a	b
 5	f
 6	g
 create TEMPORARY TABLE t2 engine=heap select * from t1;
+Warnings:
+Note	1050	Table 't2' already exists
 create TEMPORARY TABLE IF NOT EXISTS t2 (a int) engine=heap;
 Warnings:
 Note	1050	Table 't2' already exists
@@ -54,6 +60,8 @@ a	b
 5	f
 6	g
 alter table t2 add primary key (a,b);
+Warnings:
+Note	1050	Table 't2' already exists
 drop table t1,t2;
 select * from t1;
 c	d
@@ -62,6 +70,8 @@ c	d
 3	b
 drop table t2;
 create temporary table t1 select *,2 as "e" from t1;
+Warnings:
+Note	1050	Table 't1' already exists
 select * from t1;
 c	d	e
 1		2
@@ -158,6 +168,8 @@ CREATE TABLE t1 (i INT);
 LOCK TABLE t1 WRITE;
 connect  conn1, localhost, root,,;
 CREATE TEMPORARY TABLE t1 (i INT);
+Warnings:
+Note	1050	Table 't1' already exists
 The following command should not block
 DROP TEMPORARY TABLE t1;
 disconnect conn1;
@@ -241,6 +253,8 @@ CREATE DATABASE bug48067;
 CREATE TABLE bug48067.t1 (c1 int);
 INSERT INTO bug48067.t1 values (1);
 CREATE TEMPORARY TABLE bug48067.t1 (c1 int);
+Warnings:
+Note	1050	Table 't1' already exists
 DROP DATABASE bug48067;
 DROP TEMPORARY table bug48067.t1;
 End of 5.1 tests
@@ -347,6 +361,8 @@ ERROR 42S02: Table 'temp_db.temp_t1' doesn't exist
 CREATE TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
 INSERT INTO t1 VALUES("BASE TABLE");
 CREATE TEMPORARY TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
+Warnings:
+Note	1050	Table 't1' already exists
 INSERT INTO t1 VALUES("TEMPORARY TABLE");
 SELECT * FROM t1;
 c1
@@ -365,6 +381,8 @@ ERROR 42S02: Table 'temp_db.t1' doesn't exist
 CREATE TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
 INSERT INTO t1 VALUES("BASE TABLE");
 CREATE TEMPORARY TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
+Warnings:
+Note	1050	Table 't1' already exists
 INSERT INTO t1 VALUES("TEMPORARY TABLE");
 SELECT * FROM t1;
 c1
@@ -395,6 +413,8 @@ DROP TEMPORARY TABLE temp_t1;
 USE temp_db;
 CREATE TABLE t1(i INT)ENGINE=INNODB;
 CREATE TEMPORARY TABLE t1(i INT) ENGINE=INNODB;
+Warnings:
+Note	1050	Table 't1' already exists
 INSERT INTO t1 VALUES (1);
 DROP DATABASE temp_db;
 CREATE DATABASE temp_db;

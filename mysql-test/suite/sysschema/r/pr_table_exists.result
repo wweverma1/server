@@ -11,6 +11,8 @@ SELECT @exists;
 @exists
 VIEW
 CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
+Warnings:
+Note	1050	Table 't1' already exists
 CALL sys.table_exists('test', 't1', @exists);
 SELECT @exists;
 @exists

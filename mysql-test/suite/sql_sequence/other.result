@@ -332,15 +332,21 @@ DROP TEMPORARY SEQUENCE s;
 ERROR 42S02: Unknown SEQUENCE: 'test.s'
 UNLOCK TABLES;
 CREATE TEMPORARY SEQUENCE s;
+Warnings:
+Note	1050	Table 's' already exists
 LOCK TABLE t WRITE;
 DROP TEMPORARY SEQUENCE s;
 UNLOCK TABLES;
 DROP SEQUENCE s;
 create table s(a INT);
 CREATE TEMPORARY TABLE s (f INT);
+Warnings:
+Note	1050	Table 's' already exists
 LOCK TABLE t WRITE;
 DROP TEMPORARY TABLE s;
 CREATE TEMPORARY TABLE s (f INT);
+Warnings:
+Note	1050	Table 's' already exists
 DROP TABLE s;
 DROP TABLE s;
 ERROR HY000: Table 's' was not locked with LOCK TABLES

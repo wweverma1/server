@@ -143,6 +143,8 @@ UNLOCK TABLES;
 # Lock temporary table that shadows a base table:
 
 CREATE TEMPORARY TABLE t1 (a INT) ENGINE=INNODB;
+Warnings:
+Note	1050	Table 't1' already exists
 LOCK TABLES t1 WRITE;
 DROP TABLE t1;
 SELECT * FROM t1;

@@ -7179,6 +7179,8 @@ CREATE VIEW t1 AS SELECT 10 AS f1;
 CALL p1(1);
 ERROR HY000: The target table t1 of the INSERT is not insertable-into
 CREATE TEMPORARY TABLE t1 (f1 INT);
+Warnings:
+Note	1050	Table 't1' already exists
 # t1 still refers to the view since it was inlined
 CALL p1(2);
 ERROR HY000: The target table t1 of the INSERT is not insertable-into
@@ -7199,6 +7201,8 @@ CREATE VIEW v2_unrelated AS SELECT 1 AS r1;
 CALL p1(4);
 ERROR HY000: The target table t1 of the INSERT is not insertable-into
 CREATE TEMPORARY TABLE t1 (f1 int);
+Warnings:
+Note	1050	Table 't1' already exists
 ALTER VIEW v2_unrelated AS SELECT 2 AS r1;
 # Alter view causes the sp cache to be invalidated.
 # Now t1 refers to the temporary table, not the view.

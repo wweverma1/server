@@ -608,7 +608,11 @@ CREATE TABLE t1 (id INT);
 LOCK TABLE t1 WRITE;
 connect  con1, localhost, root;
 CREATE TEMPORARY TABLE t1 (id INT);
+Warnings:
+Note	1050	Table 't1' already exists
 ALTER TABLE t1 ADD COLUMN j INT;
+Warnings:
+Note	1050	Table 't1' already exists
 connection default;
 disconnect con1;
 UNLOCK TABLES;

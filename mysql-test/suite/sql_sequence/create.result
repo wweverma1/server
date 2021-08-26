@@ -486,6 +486,8 @@ select previous value for t1;
 previous value for t1
 1
 CREATE TEMPORARY SEQUENCE t1 start with 100 minvalue 100 maxvalue 200 increment by 1 cache 10;
+Warnings:
+Note	1050	Table 't1' already exists
 select previous value for t1;
 previous value for t1
 NULL
@@ -515,6 +517,8 @@ select previous value for t1;
 previous value for t1
 1
 CREATE TEMPORARY SEQUENCE t1 start with 100 minvalue 100 maxvalue 200 increment by 1 cache 10 engine=innodb;
+Warnings:
+Note	1050	Table 't1' already exists
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 select previous value for t1;
 previous value for t1
@@ -610,6 +614,8 @@ drop table s,s2;
 #
 create or replace sequence s;
 create temporary table s (i int);
+Warnings:
+Note	1050	Table 's' already exists
 drop sequence s;
 show create table s;
 Table	Create Table
@@ -619,6 +625,8 @@ s	CREATE TEMPORARY TABLE `s` (
 drop table s;
 create or replace sequence s;
 create temporary sequence s;
+Warnings:
+Note	1050	Table 's' already exists
 show create table s;
 Table	Create Table
 s	CREATE TEMPORARY TABLE `s` (
@@ -647,6 +655,8 @@ s	CREATE TABLE `s` (
 drop table s;
 create or replace sequence s;
 create temporary sequence s;
+Warnings:
+Note	1050	Table 's' already exists
 drop temporary sequence s;
 show create table s;
 Table	Create Table

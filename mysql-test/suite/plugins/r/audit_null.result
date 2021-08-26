@@ -41,11 +41,15 @@ t2.a+1	t2_copy.a+2
 3	4
 drop view v1;
 create temporary table t2 (a date);
+Warnings:
+Note	1050	Table 't2' already exists
 insert t2 values ('2020-10-09');
 select * from t2;
 a
 2020-10-09
 alter table t2 add column b int;
+Warnings:
+Note	1050	Table 't2' already exists
 drop table t2;
 explain select distinct * from t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -98,9 +102,11 @@ root[root] @ localhost []	mysql.column_stats : read
 root[root] @ localhost []	mysql.index_stats : read
 root[root] @ localhost []	>> drop view v1
 root[root] @ localhost []	>> create temporary table t2 (a date)
+root[root] @ localhost []	>> SHOW WARNINGS
 root[root] @ localhost []	>> insert t2 values ('2020-10-09')
 root[root] @ localhost []	>> select * from t2
 root[root] @ localhost []	>> alter table t2 add column b int
+root[root] @ localhost []	>> SHOW WARNINGS
 root[root] @ localhost []	>> drop table t2
 root[root] @ localhost []	>> explain select distinct * from t2
 root[root] @ localhost []	test.t2 : read

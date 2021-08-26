@@ -216,6 +216,8 @@ create table t1 (a int);
 create table t2 (a int);
 lock table t1 write, t2 write;
 create temporary table t1 (a int);
+Warnings:
+Note	1050	Table 't1' already exists
 flush table t1;
 drop temporary table t1;
 select * from t1;
@@ -527,6 +529,8 @@ DROP TABLE t1;
 CREATE TABLE t (c INT);
 LOCK TABLES t READ LOCAL;
 CREATE TEMPORARY TABLE t (a INT) SELECT 1 AS a;
+Warnings:
+Note	1050	Table 't' already exists
 DROP SEQUENCE t;
 ERROR 42S02: Unknown SEQUENCE: 'test.t'
 DROP TEMPORARY TABLE t;

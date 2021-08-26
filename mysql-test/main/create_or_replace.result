@@ -25,7 +25,11 @@ DROP TEMPORARY TABLE t1;
 #
 CREATE OR REPLACE TABLE t1 (a int);
 CREATE OR REPLACE TEMPORARY TABLE t1 (a int);
+Warnings:
+Note	1050	Table 't1' already exists
 CREATE OR REPLACE TEMPORARY TABLE t1 (a int, b int);
+Warnings:
+Note	1050	Table 't1' already exists
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
@@ -51,10 +55,20 @@ drop table t1;
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write;
 CREATE OR REPLACE TEMPORARY TABLE t1 (a int);
+Warnings:
+Note	1050	Table 't1' already exists
 CREATE OR REPLACE TEMPORARY TABLE t1 (a int, b int);
+Warnings:
+Note	1050	Table 't1' already exists
 CREATE OR REPLACE TEMPORARY TABLE t1 (a int, b int) engine= innodb;
+Warnings:
+Note	1050	Table 't1' already exists
 CREATE OR REPLACE TEMPORARY TABLE t1 (a int) engine= innodb;
+Warnings:
+Note	1050	Table 't1' already exists
 CREATE OR REPLACE TEMPORARY TABLE t1 (a int, b int) engine=myisam;
+Warnings:
+Note	1050	Table 't1' already exists
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (

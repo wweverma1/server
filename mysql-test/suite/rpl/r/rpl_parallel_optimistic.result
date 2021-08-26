@@ -575,6 +575,8 @@ include/stop_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (40, 10);
 CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+Warnings:
+Note	1050	Table 't1' already exists
 INSERT INTO t1 VALUES (41);
 BEGIN;
 INSERT INTO t2 SELECT a, 20 FROM t1;
