@@ -4,6 +4,8 @@ connection master;
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE TEMPORARY TABLE t2 (a int, b int);
+Warnings:
+Note	1050	Table 't2' already exists
 SHOW TABLES;
 Tables_in_test
 t1
@@ -26,6 +28,8 @@ t1
 t2
 connection master;
 CREATE TEMPORARY TABLE t2 (a int, b int);
+Warnings:
+Note	1050	Table 't2' already exists
 SHOW TABLES;
 Tables_in_test
 t1

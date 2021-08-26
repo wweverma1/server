@@ -2232,6 +2232,8 @@ create table t1 (i int);
 create trigger t1_bi before insert on t1 for each row set @a:=1;
 # Create temporary table which shadows base table with trigger.
 create temporary table t1 (j int);
+Warnings:
+Note	1050	Table 't1' already exists
 # Dropping of trigger should succeed.
 drop trigger t1_bi;
 select trigger_name from information_schema.triggers

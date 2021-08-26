@@ -303,6 +303,8 @@ unlock tables;
 flush table v3 with read lock;
 unlock tables;
 create temporary table v1 (a int);
+Warnings:
+Note	1050	Table 'v1' already exists
 flush table v1 with read lock;
 unlock tables;
 drop view v1;

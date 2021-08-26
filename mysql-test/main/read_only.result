@@ -45,6 +45,8 @@ ERROR HY000: The MariaDB server is running with the --read-only option so it can
 delete t3 from t1,t3 where t1.a=t3.a;
 delete t4 from t3,t4 where t4.a=t3.a;
 create temporary table t1 (a int);
+Warnings:
+Note	1050	Table 't1' already exists
 insert into t1 values(1);
 update t1,t3 set t1.a=t3.a+1 where t1.a=t3.a;
 delete t1 from t1,t3 where t1.a=t3.a;

@@ -6,6 +6,8 @@ include/master-slave.inc
 #
 CREATE TABLE t1 (a INT);
 CREATE TEMPORARY TABLE t1 (b INT);
+Warnings:
+Note	1050	Table 't1' already exists
 RENAME TABLE t1 TO tmp, tmp TO t1;
 SHOW CREATE TABLE t1;
 Table	Create Table

@@ -24,6 +24,8 @@ select is_updatable from information_schema.views where table_name='v1';
 is_updatable
 NO
 create temporary table t1 (a int, b int);
+Warnings:
+Note	1050	Table 't1' already exists
 select * from t1;
 a	b
 select c from v1;
@@ -4716,6 +4718,8 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 DROP TABLE t1;
 CREATE VIEW v1 AS SELECT 1 AS f1;
 CREATE TEMPORARY TABLE v1 (id INT);
+Warnings:
+Note	1050	Table 'v1' already exists
 ALTER VIEW v1 AS SELECT 2 AS f1;
 DROP TABLE v1;
 SELECT * FROM v1;
@@ -4730,6 +4734,8 @@ DROP TABLE IF EXISTS t1, t2;
 DROP VIEW IF EXISTS t2;
 CREATE TABLE t1 (f1 integer);
 CREATE TEMPORARY TABLE IF NOT EXISTS t1 (f1 integer);
+Warnings:
+Note	1050	Table 't1' already exists
 CREATE TEMPORARY TABLE t2 (f1 integer);
 DROP TABLE t1;
 FLUSH TABLES WITH READ LOCK;

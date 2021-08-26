@@ -135,6 +135,8 @@ drop table t2;
 CREATE TABLE t1 (a INT);
 insert into t1 values (1);
 CREATE TEMPORARY TABLE t1 (b INT);
+Warnings:
+Note	1050	Table 't1' already exists
 insert into t1 values (2);
 RENAME TABLE t1 TO tmp, t1 TO t2;
 select * from tmp;

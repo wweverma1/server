@@ -69,6 +69,7 @@
 
 #include "lex_symbol.h"
 #define KEYWORD_SIZE 64
+#define IS_USER_TEMP_TABLE(A) (A->tmp_table != NO_TMP_TABLE)
 
 extern SYMBOL symbols[];
 extern size_t symbols_length;
@@ -151,6 +152,7 @@ static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
 static const LEX_CSTRING *view_algorithm(TABLE_LIST *table);
 
 bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
+void process_i_s_table_temporary_tables(THD *thd, TABLE * table, TABLE *tmp_tbl);
 
 /**
   Try to lock a mutex, but give up after a short while to not cause deadlocks
@@ -5128,6 +5130,7 @@ public:
   }
 };
 
+
 /**
   @brief          Fill I_S tables whose data are retrieved
                   from frm files and storage engine
@@ -5232,6 +5235,22 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   init_alloc_root(PSI_INSTRUMENT_ME, &tmp_mem_root, SHOW_ALLOC_BLOCK_SIZE,
                   SHOW_ALLOC_BLOCK_SIZE, MY_THREAD_SPECIFIC);
 
+  /* Handling session temporary tables from the backup state */
+  if (schema_table_idx == SCH_TABLES && open_tables_state_backup.temporary_tables)
+  {
+    All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
+    TMP_TABLE_SHARE *share_temp;
+    while ((share_temp= it++))
+    {
+      All_share_tables_list::Iterator it2(share_temp->all_tmp_tables);
+      while (TABLE *tmp_tbl= it2++)
+      {
+        if (IS_USER_TEMP_TABLE(share_temp))
+          process_i_s_table_temporary_tables(thd, table, tmp_tbl);
+      }
+    }
+  }
+
   for (size_t i=0; i < db_names.elements(); i++)
   {
     LEX_CSTRING *db_name= db_names.at(i);
@@ -5252,9 +5271,9 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       if (unlikely(res))
         goto err;
 
-      for (size_t i=0; i < table_names.elements(); i++)
+      for (size_t j=0; j < table_names.elements(); j++)
       {
-        LEX_CSTRING *table_name= table_names.at(i);
+        LEX_CSTRING *table_name= table_names.at(j);
         DBUG_ASSERT(table_name->length <= NAME_LEN);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -5504,6 +5523,8 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       table->field[3]->store(STRING_WITH_LEN("SYSTEM VIEW"), cs);
     else if (share->table_type == TABLE_TYPE_SEQUENCE)
       table->field[3]->store(STRING_WITH_LEN("SEQUENCE"), cs);
+    else if (IS_USER_TEMP_TABLE(share))
+      table->field[3]->store(STRING_WITH_LEN("TEMPORARY"), cs);
     else
     {
       DBUG_ASSERT(share->tmp_table == NO_TMP_TABLE);
@@ -5777,6 +5798,26 @@ err:
   }
 
   DBUG_RETURN(schema_table_store_record(thd, table));
+}
+
+
+/**
+ @brief           Fill IS.table with temporary tables
+ @param[in]       table                I_S table (TABLE)
+ @param[in]       db_name              db name of temporary table
+ @param[in]       table_name           table name of temporary table
+ @return          Operation status
+   @retval        0   - success
+   @retval        1   - failure
+*/
+void process_i_s_table_temporary_tables(THD *thd, TABLE * table, TABLE *tmp_tbl)
+{
+  TABLE_LIST table_list;
+  bzero((char*) &table_list, sizeof(TABLE_LIST));
+  table_list.table= tmp_tbl;
+
+  get_schema_tables_record(thd, &table_list, table,
+                           0, &tmp_tbl->s->db, &tmp_tbl->s->table_name);
 }
 
 

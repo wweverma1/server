@@ -114,36 +114,14 @@ BEGIN
     DECLARE CONTINUE HANDLER FOR 1050 SET v_error = TRUE;
     DECLARE CONTINUE HANDLER FOR 1146 SET v_error = TRUE;
 
-    SET out_exists = '';
-
-    -- Verify whether the table name exists as a normal table
-    IF (EXISTS(SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = in_db AND TABLE_NAME = in_table)) THEN
-        -- Unfortunately the only way to determine whether there is also a temporary table is to try to create
-        -- a temporary table with the same name. If it succeeds the table didn't exist as a temporary table.
-        SET @sys.tmp.table_exists.SQL = CONCAT('CREATE TEMPORARY TABLE `', in_db, '`.`', in_table, '` (id INT PRIMARY KEY)');
-        PREPARE stmt_create_table FROM @sys.tmp.table_exists.SQL;
-        EXECUTE stmt_create_table;
-        DEALLOCATE PREPARE stmt_create_table;
-        IF (v_error) THEN
-            SET out_exists = 'TEMPORARY';
-        ELSE
-            -- The temporary table was created, i.e. it didn't exist. Remove it again so we don't leave garbage around.
-            SET @sys.tmp.table_exists.SQL = CONCAT('DROP TEMPORARY TABLE `', in_db, '`.`', in_table, '`');
-            PREPARE stmt_drop_table FROM @sys.tmp.table_exists.SQL;
-            EXECUTE stmt_drop_table;
-            DEALLOCATE PREPARE stmt_drop_table;
-            SET out_exists = (SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = in_db AND TABLE_NAME = in_table);
-        END IF;
-    ELSE
-        -- Check whether a temporary table exists with the same name.
-        -- If it does it's possible to SELECT from the table without causing an error.
-        -- If it does not exist even a PREPARE using the table will fail.
-        SET @sys.tmp.table_exists.SQL = CONCAT('SELECT COUNT(*) FROM `', in_db, '`.`', in_table, '`');
-        PREPARE stmt_select FROM @sys.tmp.table_exists.SQL;
-        IF (NOT v_error) THEN
-            DEALLOCATE PREPARE stmt_select;
-            SET out_exists = 'TEMPORARY';
-        END IF;
+    SET out_exists = (SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = in_db AND TABLE_NAME = in_table AND TABLE_TYPE= 'temporary');
+    IF out_exists is NULL
+    THEN
+        SET out_exists = (SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = in_db AND TABLE_NAME = in_table);
+       IF out_exists is NULL
+       THEN
+           SET out_exists='';
+       END IF;
     END IF;
 END$$
 
