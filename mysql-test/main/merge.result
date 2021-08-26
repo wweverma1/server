@@ -3049,6 +3049,8 @@ c1	c2
 213	223
 #
 CREATE TEMPORARY TABLE t1 (c1 INT, c2 INT) ENGINE=MyISAM;
+Warnings:
+Note	1050	Table 't1' already exists
 INSERT INTO t1 VALUES (611, 621);
 SELECT * FROM m1;
 c1	c2
@@ -3456,6 +3458,8 @@ c1	c2
 213	223
 #
 CREATE TEMPORARY TABLE t1 (c1 INT, c2 INT) ENGINE=MyISAM;
+Warnings:
+Note	1050	Table 't1' already exists
 INSERT INTO t1 VALUES (611, 621);
 SELECT * FROM m1;
 c1	c2

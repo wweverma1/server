@@ -4793,6 +4793,8 @@ DROP TABLE IF EXISTS t2_temp;
 DROP VIEW  IF EXISTS v1;
 Create table t1_temp(f59 char(10),f60 int) ;
 Create temporary table t1_temp(f59 char(10),f60 int) ;
+Warnings:
+Note	1050	Table 't1_temp' already exists
 Insert into t1_temp values('FER',90);
 Insert into t1_temp values('CAR',27);
 Create view v1 as select * from t1_temp ;
@@ -4810,6 +4812,8 @@ DROP TABLE IF EXISTS t1;
 DROP VIEW  IF EXISTS v1;
 CREATE           TABLE t1 (f1 char(10));
 CREATE TEMPORARY TABLE t2 (f2 char(10));
+Warnings:
+Note	1050	Table 't2' already exists
 INSERT INTO t1 VALUES('t1');
 INSERT INTO t1 VALUES('A');
 INSERT INTO t2 VALUES('t2');

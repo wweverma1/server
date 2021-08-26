@@ -1425,6 +1425,8 @@ DROP TABLE t1;
 #  Bug#33275 Server crash when creating temporary table mysql.user
 #
 CREATE TEMPORARY TABLE mysql.user (id INT);
+Warnings:
+Note	1050	Table 'user' already exists
 FLUSH PRIVILEGES;
 DROP TABLE mysql.user;
 drop table if exists test;

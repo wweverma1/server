@@ -40,6 +40,8 @@ INSERT INTO t1 VALUES(1), (2);
 INSERT INTO t2 VALUES(1, DEFAULT), (2, default);
 # restart
 CREATE TEMPORARY TABLE t2 (fld1 INT NOT NULL)ENGINE=INNODB;
+Warnings:
+Note	1050	Table 't2' already exists
 UPDATE t1 SET fld1= 3 WHERE fld1= 2;
 connect con1,localhost,root,,test;
 SELECT fld2 FROM t2;

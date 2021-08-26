@@ -306,6 +306,8 @@ PREPARE h_r FROM 'HANDLER t1 READ `PRIMARY` LAST';
 ERROR 42S02: Unknown table 't1' in HANDLER
 create view v as select 1;
 create temporary table v as select 2;
+Warnings:
+Note	1050	Table 'v' already exists
 handler v open;
 prepare stmt from 'create table if not exists v as select 3';
 execute stmt;

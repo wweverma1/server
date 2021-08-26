@@ -752,6 +752,8 @@ id
 3
 create temporary table t1 (a int not null auto_increment
 primary key);
+Warnings:
+Note	1050	Table 't1' already exists
 select * from t1;
 a
 drop table t1;

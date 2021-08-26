@@ -449,6 +449,8 @@ delete from t1;
 alter table t1 engine=myisam;
 # MDEV-14692 crash in MDL_context::upgrade_shared_lock()
 create or replace temporary table t (a int);
+Warnings:
+Note	1050	Table 't' already exists
 alter table t change column if exists b c bigint unsigned generated always as row start;
 ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
 alter table t change column if exists b c bigint unsigned generated always as row end;
