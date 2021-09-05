@@ -80,6 +80,7 @@ extern ulong       wsrep_max_ws_size;
 extern ulong       wsrep_max_ws_rows;
 extern const char* wsrep_notify_cmd;
 extern const char* wsrep_allowlist;
+extern const char* wsrep_status_file;
 extern my_bool     wsrep_certify_nonPK;
 extern long int    wsrep_protocol_version;
 extern ulong       wsrep_forced_binlog_format;
