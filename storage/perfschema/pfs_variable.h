@@ -606,6 +606,17 @@ public:
   ~PFS_system_variable_cache() { free_mem_root(); }
 
   typedef void (PFS_system_variable_cache::* Request_func)(uint);
+
+  THD *safe_thd() const
+  {
+    DBUG_ASSERT(m_safe_thd);
+    return m_safe_thd;
+  }
+
+  enum_var_type query_scope() const
+  {
+    return m_query_scope;
+  }
 private:
   /* Build SHOW_var array. */
   bool init_show_var_array(enum_var_type scope, bool strict);

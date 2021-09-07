@@ -1053,6 +1053,15 @@ plugin_ref plugin_lock(THD *thd, plugin_ref ptr)
 }
 
 
+void plugin_lock_by_var_if_different(THD *thd, sys_var *var, sys_var *var_prev)
+{
+  sys_var_pluginvar *pv= var->cast_pluginvar();
+  sys_var_pluginvar *pv_prev= var_prev ? var_prev->cast_pluginvar() : NULL;
+  if (pv && (!pv_prev || pv->plugin != pv_prev->plugin))
+    intern_plugin_lock(thd->lex, plugin_int_to_ref(pv->plugin));
+}
+
+
 /*
   Notes on lifetime:
 
