@@ -185,7 +185,10 @@ void plugin_opt_set_limits(struct my_option *, const struct st_mysql_sys_var *);
 extern SHOW_COMP_OPTION plugin_status(const char *name, size_t len, int type);
 extern bool check_valid_path(const char *path, size_t length);
 extern void plugin_mutex_init();
-void plugin_lock_by_var_if_different(THD *thd, sys_var *var, sys_var *var_prev);
+
+template <class T> class Dynamic_array;
+
+void plugin_lock_by_sys_var_array(THD *thd, Dynamic_array<SHOW_VAR> *vars);
 
 typedef my_bool (plugin_foreach_func)(THD *thd,
                                       plugin_ref plugin,

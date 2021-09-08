@@ -102,14 +102,7 @@ bool PFS_system_variable_cache::init_show_var_array(enum_var_type scope, bool st
 
   mysql_prlock_unlock(&LOCK_system_variables_hash);
 
-  for (uint i= 0; i < m_show_var_array.elements(); i++)
-  {
-    sys_var *var= (sys_var *)m_show_var_array.at(i).value;
-    if (!var) continue;
-    sys_var *prev= i == 0 ? NULL : (sys_var *)m_show_var_array.at(i-1).value;
-
-    plugin_lock_by_var_if_different(m_current_thd, var, prev);
-  }
+  plugin_lock_by_sys_var_array(m_current_thd, &m_show_var_array);
 
   /* Increase cache size if necessary. */
   m_cache.reserve(m_show_var_array.elements());
@@ -334,19 +327,19 @@ public:
   {
     THD *safe_thd= pfs->safe_thd();
 
-    if (pfs->query_scope() == OPT_SESSION)
+    DBUG_ASSERT(pfs->query_scope() == OPT_SESSION);
+
+    mysql_mutex_lock(&LOCK_global_system_variables);
+    if (!safe_thd->variables.dynamic_variables_ptr ||
+        global_system_variables.dynamic_variables_head >
+        safe_thd->variables.dynamic_variables_head)
     {
-      mysql_mutex_lock(&LOCK_global_system_variables);
-      if (!safe_thd->variables.dynamic_variables_ptr ||
-          global_system_variables.dynamic_variables_head >
-          safe_thd->variables.dynamic_variables_head)
-      {
-        mysql_prlock_rdlock(&LOCK_system_variables_hash);
-        sync_dynamic_session_variables(safe_thd, false);
-        mysql_prlock_unlock(&LOCK_system_variables_hash);
-      }
-      mysql_mutex_unlock(&LOCK_global_system_variables);
+      mysql_prlock_rdlock(&LOCK_system_variables_hash);
+      sync_dynamic_session_variables(safe_thd, false);
+      mysql_prlock_unlock(&LOCK_system_variables_hash);
     }
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+
     (pfs->*func)(param);
   }
 };
