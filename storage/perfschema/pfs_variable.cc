@@ -358,11 +358,6 @@ void PFS_system_variable_cache::refresh_vars(uint all)
       System_variable system_var(m_safe_thd, show_var, m_query_scope, false);
       m_cache.push(system_var);
     }
-    else
-    {
-      System_variable dummy;
-      m_cache.push(dummy);
-    }
   }
 }
 void PFS_system_variable_cache::refresh_one_var(uint index)

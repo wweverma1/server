@@ -80,29 +80,20 @@ connection default;
 USE performance_schema;
 #
 # Record bytes_received for other connection
-SELECT variable_value FROM status_by_thread
-WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_before;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+SELECT variable_value INTO @bytes_before FROM status_by_thread
+WHERE variable_name = "bytes_received" and thread_id = @thread_id;
 #
 # Reset status counters
 FLUSH STATUS;
 #
 # Record bytes_received after reset
-SELECT variable_value FROM status_by_thread
-WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_after;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+SELECT variable_value INTO @bytes_after FROM status_by_thread
+WHERE variable_name = "bytes_received" and thread_id = @thread_id;
 #
 # Expect bytes_before > bytes_after
 SELECT @bytes_before > @bytes_after AS 'Expect 1';
 Expect 1
 0
-#
-# Expect bytes_after is zero
-SELECT @bytes_after AS 'Expect 0';
-Expect 0
-323
 disconnect con1;
 #
 # TEST 6

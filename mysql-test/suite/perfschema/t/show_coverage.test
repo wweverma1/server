@@ -89,21 +89,18 @@ eval SELECT $thread_id INTO @thread_id;
 
 --echo #
 --echo # Record bytes_received for other connection
-SELECT variable_value FROM status_by_thread
-  WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_before;
+SELECT variable_value INTO @bytes_before FROM status_by_thread
+  WHERE variable_name = "bytes_received" and thread_id = @thread_id;
 --echo #
 --echo # Reset status counters
 FLUSH STATUS;
 --echo #
 --echo # Record bytes_received after reset
-SELECT variable_value FROM status_by_thread
-  WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_after;
+SELECT variable_value INTO @bytes_after FROM status_by_thread
+  WHERE variable_name = "bytes_received" and thread_id = @thread_id;
 --echo #
 --echo # Expect bytes_before > bytes_after
 SELECT @bytes_before > @bytes_after AS 'Expect 1';
---echo #
---echo # Expect bytes_after is zero
-SELECT @bytes_after AS 'Expect 0';
 
 disconnect con1;
 --source include/wait_until_count_sessions.inc
