@@ -393,7 +393,7 @@ int PFS_system_variable_cache::make_call(Request_func func, uint param)
   {
     PFS_system_variable_cache_apc apc_call(this, func, param);
     bool timed_out;
-    ret= m_safe_thd->apc_target.make_apc_call(requestor_thd, &apc_call, 0,
+    ret= m_safe_thd->apc_target.make_apc_call(requestor_thd, &apc_call, 30,
                                               &timed_out);
   }
   return ret;
