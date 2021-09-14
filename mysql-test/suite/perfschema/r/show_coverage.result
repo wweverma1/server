@@ -63,39 +63,6 @@ Variable_name	Value
 SHOW SESSION VARIABLES WHERE VARIABLE_NAME LIKE "foo";
 Variable_name	Value
 #
-# TEST 5
-# Confirm FLUSH STATUS resets counters for all threads.
-#
-#
-# Create a new connection
-connect con1, localhost, root,,;
-#
-# Record thread id
-#
-# Increase bytes_received for new connection
-USE test;
-SHOW TABLES;
-Tables_in_test
-connection default;
-USE performance_schema;
-#
-# Record bytes_received for other connection
-SELECT variable_value INTO @bytes_before FROM status_by_thread
-WHERE variable_name = "bytes_received" and thread_id = @thread_id;
-#
-# Reset status counters
-FLUSH STATUS;
-#
-# Record bytes_received after reset
-SELECT variable_value INTO @bytes_after FROM status_by_thread
-WHERE variable_name = "bytes_received" and thread_id = @thread_id;
-#
-# Expect bytes_before > bytes_after
-SELECT @bytes_before > @bytes_after AS 'Expect 1';
-Expect 1
-0
-disconnect con1;
-#
 # TEST 6
 #
 # Bug#28291258 FLUSH STATUS ADDS TWICE TO GLOBAL VALUES
