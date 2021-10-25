@@ -3277,10 +3277,14 @@ end:
                                                 check_role_is_granted_callback,
                                                 NULL) == -1))
       {
-        /* Role is not granted but current user can see the role */
-        my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
-                        MYF(0), thd->security_ctx->priv_user,
-                        thd->security_ctx->priv_host, rolename);
+        /* If the SET ROLE is applied on the anonymous user, host is null */
+        if (!host)
+          my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+                          MYF(0), thd->security_ctx->priv_user, thd->security_ctx->priv_host, rolename);
+        else
+          /* Role is not granted but current user can see the role */
+          my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+                          MYF(0), user, host, rolename);
       }
       else
       {
