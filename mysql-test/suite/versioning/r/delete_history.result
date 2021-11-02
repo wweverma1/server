@@ -1,3 +1,5 @@
+set @saved_frequency= @@global.innodb_purge_rseg_truncate_frequency;
+set global innodb_purge_rseg_truncate_frequency= 1;
 create table t (a int);
 delete history from t before system_time now();
 ERROR HY000: Table `t` is not system-versioned
@@ -162,3 +164,14 @@ x
 1
 drop prepare stmt;
 drop table t1;
+#
+# MDEV-25004 Missing row in FTS_DOC_ID_INDEX during DELETE HISTORY
+#
+create table t1 (a integer, c0 varchar(255), fulltext key (c0))
+with system versioning engine innodb;
+insert into t1 values (1, 'politician');
+update t1 set c0= 'criminal';
+InnoDB		0 transactions not purged
+delete history from t1;
+drop table t1;
+set global innodb_purge_rseg_truncate_frequency= @saved_frequency;

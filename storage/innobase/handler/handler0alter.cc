@@ -2756,6 +2756,9 @@ innobase_fts_check_doc_id_index(
 		/* Check if a unique index with the name of
 		FTS_DOC_ID_INDEX_NAME is being created. */
 
+		const ulint fts_n_uniq= altered_table->versioned() ? 2 : 1;
+		ut_ad(!table || table->fts_n_uniq() == fts_n_uniq);
+
 		for (uint i = 0; i < altered_table->s->keys; i++) {
 			const KEY& key = altered_table->key_info[i];
 
@@ -2765,7 +2768,7 @@ innobase_fts_check_doc_id_index(
 			}
 
 			if ((key.flags & HA_NOSAME)
-			    && key.user_defined_key_parts == 1
+			    && key.user_defined_key_parts == fts_n_uniq
 			    && !strcmp(key.name.str, FTS_DOC_ID_INDEX_NAME)
 			    && !strcmp(key.key_part[0].field->field_name.str,
 				       FTS_DOC_ID_COL_NAME)) {
@@ -2795,7 +2798,7 @@ innobase_fts_check_doc_id_index(
 		}
 
 		if (!dict_index_is_unique(index)
-		    || dict_index_get_n_unique(index) > 1
+		    || dict_index_get_n_unique(index) != table->fts_n_uniq()
 		    || strcmp(index->name, FTS_DOC_ID_INDEX_NAME)) {
 			return(FTS_INCORRECT_DOC_ID_INDEX);
 		}
@@ -2836,6 +2839,7 @@ innobase_fts_check_doc_id_index_in_def(
 {
 	/* Check whether there is a "FTS_DOC_ID_INDEX" in the to be built index
 	list */
+	const uint fts_n_uniq= key_info->table->versioned() ? 2 : 1;
 	for (ulint j = 0; j < n_key; j++) {
 		const KEY*	key = &key_info[j];
 
@@ -2846,7 +2850,7 @@ innobase_fts_check_doc_id_index_in_def(
 		/* Do a check on FTS DOC ID_INDEX, it must be unique,
 		named as "FTS_DOC_ID_INDEX" and on column "FTS_DOC_ID" */
 		if (!(key->flags & HA_NOSAME)
-		    || key->user_defined_key_parts != 1
+		    || key->user_defined_key_parts != fts_n_uniq
 		    || strcmp(key->name.str, FTS_DOC_ID_INDEX_NAME)
 		    || strcmp(key->key_part[0].field->field_name.str,
 			      FTS_DOC_ID_COL_NAME)) {
@@ -3044,13 +3048,21 @@ created_clustered:
 
 	if (add_fts_doc_idx) {
 		index_def_t*	index = indexdef++;
+		uint nfields = 1;
 
+		if (table->versioned())
+			++nfields;
 		index->fields = static_cast<index_field_t*>(
-			mem_heap_alloc(heap, sizeof *index->fields));
-		index->n_fields = 1;
-		index->fields->col_no = fts_doc_id_col;
-		index->fields->prefix_len = 0;
-		index->fields->is_v_col = false;
+			mem_heap_alloc(heap, sizeof(*index->fields) * nfields));
+		index->n_fields = nfields;
+		index->fields[0].col_no = fts_doc_id_col;
+		index->fields[0].prefix_len = 0;
+		index->fields[0].is_v_col = false;
+		if (nfields == 2) {
+			index->fields[1].col_no = table->s->row_end_field;
+			index->fields[1].prefix_len = 0;
+			index->fields[1].is_v_col = false;
+		}
 		index->ind_type = DICT_UNIQUE;
 		ut_ad(!rebuild
 		      || !add_fts_doc_id

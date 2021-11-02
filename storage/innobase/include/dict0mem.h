@@ -2120,6 +2120,12 @@ public:
   or mysql/innodb_index_stats.
   @return true if the table name is same as stats table */
   bool is_stats_table() const;
+
+  /* @return number of unique columns for FTS_DOC_ID index */
+  ulint fts_n_uniq() const
+  {
+    return versioned() ? 2 : 1;
+  }
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const

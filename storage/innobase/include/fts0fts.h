@@ -839,8 +839,10 @@ the right format.
 CHARSET_INFO*
 fts_valid_stopword_table(
 /*=====================*/
-	const char*	stopword_table_name);	/*!< in: Stopword table
+	const char*	stopword_table_name,	/*!< in: Stopword table
 						name */
+	const char**	select_str,
+	mem_heap_t*	heap);
 /****************************************************************//**
 This function loads specified stopword into FTS cache
 @return true if success */
