@@ -7,6 +7,7 @@
 # The embedded server tests do not support restarting.
 --source include/not_embedded.inc
 --source include/maybe_debug.inc
+--source include/maybe_versioning.inc
 
 FLUSH TABLES;
 # Following are test for crash recovery on FTS index, the first scenario

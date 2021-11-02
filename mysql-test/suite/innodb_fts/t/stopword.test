@@ -1,6 +1,7 @@
 # This is the basic function tests for innodb FTS
 
 -- source include/have_innodb.inc
+-- source include/maybe_versioning.inc
 
 call mtr.add_suppression("\\[ERROR\\] InnoDB: user stopword table not_defined does not exist.");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: user stopword table test/user_stopword_session does not exist.");

@@ -1,0 +1,5 @@
+[orig]
+
+[vers]
+debug=d,sysvers_force,sysvers_hide
+system_versioning_alter_history=keep

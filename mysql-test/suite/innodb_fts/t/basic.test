@@ -1,6 +1,7 @@
 # This is the basic function tests for innodb FTS
 
 -- source include/have_innodb.inc
+-- source include/maybe_versioning.inc
 
 # Create FTS table
 --error ER_INNODB_NO_FT_TEMP_TABLE
