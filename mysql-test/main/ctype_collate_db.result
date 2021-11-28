@@ -1,0 +1,955 @@
+#
+# Start of 10.9 tests
+#
+#
+# MDEV-27743 Remove Lex::charset
+#
+CREATE TABLE cs (cs VARCHAR(64) NOT NULL);
+INSERT INTO cs (cs) VALUES
+(''),
+('CHARACTER SET DEFAULT'),
+('CHARACTER SET latin1'),
+('CHARACTER SET utf8mb4');
+CREATE TABLE cl (cl VARCHAR(64) NOT NULL);
+INSERT INTO cl (cl) VALUES
+(''),
+('COLLATE DEFAULT'),
+('COLLATE latin1_bin'),
+('COLLATE latin1_swedish_ci'),
+('COLLATE utf8mb4_bin'),
+('COLLATE utf8mb4_general_ci'),
+('COLLATE uca1400_ai_ci');
+CREATE TABLE results
+(
+clause0 VARCHAR(64),
+clause1 VARCHAR(64),
+query VARCHAR(1024),
+result VARCHAR(1024)
+);
+CREATE VIEW results_statistics AS
+SELECT
+SUM(result NOT LIKE 'ERROR%') AS ok,
+SUM(result LIKE 'ERROR%') AS err,
+COUNT(*)
+FROM results;
+CREATE PROCEDURE populate_one(clause0 TEXT, clause1 TEXT)
+BEGIN
+DECLARE errstate TEXT DEFAULT NULL;
+DECLARE errno INT DEFAULT NULL;
+DECLARE errmsg TEXT DEFAULT NULL;
+DECLARE result TEXT;
+DECLARE query TEXT;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+BEGIN
+GET DIAGNOSTICS CONDITION 1 errstate = RETURNED_SQLSTATE,
+errno = MYSQL_ERRNO, errmsg = MESSAGE_TEXT;
+END;
+SET query= CONCAT('CREATE DATABASE db1 ', clause0, ' ', clause1);
+EXECUTE IMMEDIATE query;
+IF errmsg IS NOT NULL
+THEN
+SET result=CONCAT('ERROR: ',
+COALESCE(errstate,'<NULL>'), ' ',
+COALESCE(errno,'<NULL>'), ' ',
+COALESCE(errmsg,'<NULL>'));
+INSERT INTO results (clause0,clause1,query,result)
+VALUES (clause0,clause1,query,result);
+ELSE
+FOR row IN (SELECT
+CONCAT('CHARACTER SET ', DEFAULT_CHARACTER_SET_NAME,
+' COLLATE ', DEFAULT_COLLATION_NAME) AS result
+FROM INFORMATION_SCHEMA.SCHEMATA
+WHERE SCHEMA_NAME='db1')
+DO
+INSERT INTO results (clause0,clause1,query,result)
+VALUES (clause0,clause1,query,row.result);
+END FOR;
+DROP DATABASE db1;
+END IF;
+END;
+$$
+CREATE PROCEDURE populate_all()
+BEGIN
+FOR row IN (
+SELECT cs AS clause0, cl AS clause1
+FROM cs, cl
+ORDER BY cs, cl
+)
+DO
+CALL populate_one(row.clause0, row.clause1);
+CALL populate_one(row.clause1, row.clause0);
+END FOR;
+END;
+$$
+CREATE PROCEDURE delete_ok(cs_create VARCHAR(64),
+cl_create VARCHAR(64),
+cs_result VARCHAR(64),
+cl_result VARCHAR(64))
+BEGIN
+DELETE FROM results
+WHERE
+clause0 RLIKE cs_create
+AND clause1 RLIKE cl_create
+AND result RLIKE CONCAT('^',cs_result,'.*',cl_result);
+SELECT ROW_COUNT() AS ROW_COUNT_CS_CL;
+DELETE FROM results
+WHERE
+clause1 RLIKE cs_create
+AND clause0 RLIKE cl_create
+AND result RLIKE CONCAT('^',cs_result,'.*',cl_result);
+SELECT ROW_COUNT() AS ROW_COUNT_CL_CS;
+END;
+$$
+CREATE PROCEDURE delete_err_conflict(cs_create VARCHAR(64),
+cl_create VARCHAR(64),
+cs_cl_error VARCHAR(64),
+cl_cs_error VARCHAR(64))
+BEGIN
+DELETE FROM results
+WHERE clause0 RLIKE cs_create
+AND clause1 RLIKE cl_create
+AND result RLIKE CONCAT('Conflicting declarations.*', cs_cl_error);
+SELECT ROW_COUNT() AS ROW_COUNT_CS_CL;
+DELETE FROM results
+WHERE clause1 RLIKE cs_create
+AND clause0 RLIKE cl_create
+AND result RLIKE CONCAT('Conflicting declarations.*', cl_cs_error);
+SELECT ROW_COUNT() AS ROW_COUNT_CL_CS;
+END;
+$$
+CREATE PROCEDURE delete_err_generic(cs_create VARCHAR(64),
+cl_create VARCHAR(64),
+err VARCHAR(64))
+BEGIN
+DELETE FROM results
+WHERE
+(clause0 RLIKE cs_create
+AND clause1 RLIKE cl_create
+AND result RLIKE err);
+SELECT ROW_COUNT() AS ROW_COUNT_CS_CL;
+DELETE FROM results
+WHERE
+(clause1 RLIKE cs_create
+AND clause0 RLIKE cl_create
+AND result RLIKE err);
+SELECT ROW_COUNT() AS ROW_COUNT_CL_CS;
+END;
+$$
+#
+# Testing with utf8mb4 as the server character set
+#
+SET character_set_server=utf8mb4;
+CALL populate_all();
+SET character_set_server=DEFAULT;
+SELECT * FROM results_statistics;
+ok	err	COUNT(*)
+38	18	56
+SELECT *, '---' AS `---` FROM results WHERE result LIKE 'ERROR%';
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE latin1_bin
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: HY000 1302 Conflicting declarations: 'CHARACTER SET DEFAULT' and 'COLLATE latin1_bin'
+---	---
+clause0	COLLATE latin1_bin
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: HY000 1302 Conflicting declarations: 'COLLATE latin1_bin' and 'CHARACTER SET DEFAULT'
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE latin1_swedish_ci
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: HY000 1302 Conflicting declarations: 'CHARACTER SET DEFAULT' and 'COLLATE latin1_swedish_ci'
+---	---
+clause0	COLLATE latin1_swedish_ci
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: HY000 1302 Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'CHARACTER SET DEFAULT'
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE utf8mb4_bin
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	ERROR: HY000 1302 Conflicting declarations: 'CHARACTER SET DEFAULT' and 'COLLATE utf8mb4_bin'
+---	---
+clause0	COLLATE utf8mb4_bin
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	ERROR: HY000 1302 Conflicting declarations: 'COLLATE utf8mb4_bin' and 'CHARACTER SET DEFAULT'
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE utf8mb4_general_ci
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE utf8mb4_general_ci
+result	ERROR: HY000 1302 Conflicting declarations: 'CHARACTER SET DEFAULT' and 'COLLATE utf8mb4_general_ci'
+---	---
+clause0	COLLATE utf8mb4_general_ci
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE utf8mb4_general_ci CHARACTER SET DEFAULT
+result	ERROR: HY000 1302 Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'CHARACTER SET DEFAULT'
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE uca1400_ai_ci
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: 42000 1253 COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	COLLATE uca1400_ai_ci
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: 42000 1253 COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE utf8mb4_bin
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: 42000 1253 COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	COLLATE utf8mb4_bin
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: 42000 1253 COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE utf8mb4_general_ci
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE utf8mb4_general_ci
+result	ERROR: 42000 1253 COLLATION 'utf8mb4_general_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	COLLATE utf8mb4_general_ci
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE utf8mb4_general_ci CHARACTER SET latin1
+result	ERROR: 42000 1253 COLLATION 'utf8mb4_general_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE latin1_bin
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: 42000 1253 COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+---	---
+clause0	COLLATE latin1_bin
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: 42000 1253 COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE latin1_swedish_ci
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: 42000 1253 COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+---	---
+clause0	COLLATE latin1_swedish_ci
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: 42000 1253 COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+---	---
+SELECT *, '---' AS `---` FROM results WHERE result NOT LIKE 'ERROR%';
+clause0	
+clause1	
+query	CREATE DATABASE db1  
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	
+clause1	
+query	CREATE DATABASE db1  
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	
+clause1	COLLATE DEFAULT
+query	CREATE DATABASE db1  COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	COLLATE DEFAULT
+clause1	
+query	CREATE DATABASE db1 COLLATE DEFAULT 
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	
+clause1	COLLATE latin1_bin
+query	CREATE DATABASE db1  COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+---	---
+clause0	COLLATE latin1_bin
+clause1	
+query	CREATE DATABASE db1 COLLATE latin1_bin 
+result	CHARACTER SET latin1 COLLATE latin1_bin
+---	---
+clause0	
+clause1	COLLATE latin1_swedish_ci
+query	CREATE DATABASE db1  COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	COLLATE latin1_swedish_ci
+clause1	
+query	CREATE DATABASE db1 COLLATE latin1_swedish_ci 
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	
+clause1	COLLATE uca1400_ai_ci
+query	CREATE DATABASE db1  COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+---	---
+clause0	COLLATE uca1400_ai_ci
+clause1	
+query	CREATE DATABASE db1 COLLATE uca1400_ai_ci 
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+---	---
+clause0	
+clause1	COLLATE utf8mb4_bin
+query	CREATE DATABASE db1  COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+---	---
+clause0	COLLATE utf8mb4_bin
+clause1	
+query	CREATE DATABASE db1 COLLATE utf8mb4_bin 
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+---	---
+clause0	
+clause1	COLLATE utf8mb4_general_ci
+query	CREATE DATABASE db1  COLLATE utf8mb4_general_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	COLLATE utf8mb4_general_ci
+clause1	
+query	CREATE DATABASE db1 COLLATE utf8mb4_general_ci 
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT 
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1  CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE DEFAULT
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	COLLATE DEFAULT
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE uca1400_ai_ci
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+---	---
+clause0	COLLATE uca1400_ai_ci
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+---	---
+clause0	CHARACTER SET latin1
+clause1	
+query	CREATE DATABASE db1 CHARACTER SET latin1 
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1  CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE DEFAULT
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	COLLATE DEFAULT
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE DEFAULT CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE latin1_bin
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+---	---
+clause0	COLLATE latin1_bin
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE latin1_bin CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_bin
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE latin1_swedish_ci
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	COLLATE latin1_swedish_ci
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1  CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE DEFAULT
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	COLLATE DEFAULT
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE uca1400_ai_ci
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+---	---
+clause0	COLLATE uca1400_ai_ci
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE utf8mb4_bin
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+---	---
+clause0	COLLATE utf8mb4_bin
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE utf8mb4_general_ci
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	COLLATE utf8mb4_general_ci
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE utf8mb4_general_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+CALL delete_err_conflict('CHARACTER SET DEFAULT', 'COLLATE (latin1_|utf8mb4_)',
+'CHARACTER SET DEFAULT.*COLLATE',
+'COLLATE.*CHARACTER SET DEFAULT');
+ROW_COUNT_CS_CL
+4
+ROW_COUNT_CL_CS
+4
+CALL delete_err_generic('CHARACTER SET latin1', 'COLLATE (utf8mb4_|uca1400_)',
+'COLLATION.*is not valid for CHARACTER SET.*latin1');
+ROW_COUNT_CS_CL
+3
+ROW_COUNT_CL_CS
+3
+CALL delete_err_generic('CHARACTER SET utf8mb4', 'COLLATE latin1_',
+'COLLATION.*is not valid for CHARACTER SET.*utf8mb4');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+2
+CALL delete_ok('^$', '^$', 'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+0
+CALL delete_ok('^$', 'COLLATE DEFAULT',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_general_ci');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('^$','COLLATE latin1_',
+'CHARACTER SET latin1',  'COLLATE latin1_');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+2
+CALL delete_ok('^$', 'COLLATE utf8mb4_',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+2
+CALL delete_ok('^$','COLLATE uca1400_',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_uca1400_');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET DEFAULT', '^$',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET DEFAULT', 'COLLATE DEFAULT',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET DEFAULT', 'COLLATE uca1400_',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_uca1400_');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET latin1', 'COLLATE latin1_',
+'CHARACTER SET latin1', 'COLLATE latin1_');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+2
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE utf8mb4_',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+2
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE uca1400_',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_uca1400_');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET latin1', '^$',
+'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET utf8mb4', '^$',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_general_ci');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET latin1', 'COLLATE DEFAULT',
+'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE DEFAULT',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_general_ci');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+# Expect empty set
+SELECT *, '---' AS `---` FROM results WHERE result LIKE 'ERROR%';
+# Expect empty set
+SELECT *, '---' AS `---` FROM results WHERE result NOT LIKE 'ERROR%';
+#
+# Testing with latin1 as the server character set
+#
+SET character_set_server=latin1;
+TRUNCATE TABLE results;
+CALL populate_all();
+SET character_set_server=DEFAULT;
+SELECT * FROM results_statistics;
+ok	err	COUNT(*)
+34	22	56
+SELECT *, '---' AS `---` FROM results WHERE result LIKE 'ERROR%';
+clause0	
+clause1	COLLATE uca1400_ai_ci
+query	CREATE DATABASE db1  COLLATE uca1400_ai_ci
+result	ERROR: 42000 1253 COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	COLLATE uca1400_ai_ci
+clause1	
+query	CREATE DATABASE db1 COLLATE uca1400_ai_ci 
+result	ERROR: 42000 1253 COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE latin1_bin
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE latin1_bin
+result	ERROR: HY000 1302 Conflicting declarations: 'CHARACTER SET DEFAULT' and 'COLLATE latin1_bin'
+---	---
+clause0	COLLATE latin1_bin
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE latin1_bin CHARACTER SET DEFAULT
+result	ERROR: HY000 1302 Conflicting declarations: 'COLLATE latin1_bin' and 'CHARACTER SET DEFAULT'
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE latin1_swedish_ci
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE latin1_swedish_ci
+result	ERROR: HY000 1302 Conflicting declarations: 'CHARACTER SET DEFAULT' and 'COLLATE latin1_swedish_ci'
+---	---
+clause0	COLLATE latin1_swedish_ci
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE latin1_swedish_ci CHARACTER SET DEFAULT
+result	ERROR: HY000 1302 Conflicting declarations: 'COLLATE latin1_swedish_ci' and 'CHARACTER SET DEFAULT'
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE uca1400_ai_ci
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE uca1400_ai_ci
+result	ERROR: 42000 1253 COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	COLLATE uca1400_ai_ci
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE uca1400_ai_ci CHARACTER SET DEFAULT
+result	ERROR: 42000 1253 COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE utf8mb4_bin
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE utf8mb4_bin
+result	ERROR: HY000 1302 Conflicting declarations: 'CHARACTER SET DEFAULT' and 'COLLATE utf8mb4_bin'
+---	---
+clause0	COLLATE utf8mb4_bin
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE utf8mb4_bin CHARACTER SET DEFAULT
+result	ERROR: HY000 1302 Conflicting declarations: 'COLLATE utf8mb4_bin' and 'CHARACTER SET DEFAULT'
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE utf8mb4_general_ci
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE utf8mb4_general_ci
+result	ERROR: HY000 1302 Conflicting declarations: 'CHARACTER SET DEFAULT' and 'COLLATE utf8mb4_general_ci'
+---	---
+clause0	COLLATE utf8mb4_general_ci
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE utf8mb4_general_ci CHARACTER SET DEFAULT
+result	ERROR: HY000 1302 Conflicting declarations: 'COLLATE utf8mb4_general_ci' and 'CHARACTER SET DEFAULT'
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE uca1400_ai_ci
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE uca1400_ai_ci
+result	ERROR: 42000 1253 COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	COLLATE uca1400_ai_ci
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE uca1400_ai_ci CHARACTER SET latin1
+result	ERROR: 42000 1253 COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE utf8mb4_bin
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE utf8mb4_bin
+result	ERROR: 42000 1253 COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	COLLATE utf8mb4_bin
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE utf8mb4_bin CHARACTER SET latin1
+result	ERROR: 42000 1253 COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE utf8mb4_general_ci
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE utf8mb4_general_ci
+result	ERROR: 42000 1253 COLLATION 'utf8mb4_general_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	COLLATE utf8mb4_general_ci
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE utf8mb4_general_ci CHARACTER SET latin1
+result	ERROR: 42000 1253 COLLATION 'utf8mb4_general_ci' is not valid for CHARACTER SET 'latin1'
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE latin1_bin
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE latin1_bin
+result	ERROR: 42000 1253 COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+---	---
+clause0	COLLATE latin1_bin
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE latin1_bin CHARACTER SET utf8mb4
+result	ERROR: 42000 1253 COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE latin1_swedish_ci
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE latin1_swedish_ci
+result	ERROR: 42000 1253 COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+---	---
+clause0	COLLATE latin1_swedish_ci
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE latin1_swedish_ci CHARACTER SET utf8mb4
+result	ERROR: 42000 1253 COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+---	---
+SELECT *, '---' AS `---` FROM results WHERE result NOT LIKE 'ERROR%';
+clause0	
+clause1	
+query	CREATE DATABASE db1  
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	
+clause1	
+query	CREATE DATABASE db1  
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	
+clause1	COLLATE DEFAULT
+query	CREATE DATABASE db1  COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	COLLATE DEFAULT
+clause1	
+query	CREATE DATABASE db1 COLLATE DEFAULT 
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	
+clause1	COLLATE latin1_bin
+query	CREATE DATABASE db1  COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+---	---
+clause0	COLLATE latin1_bin
+clause1	
+query	CREATE DATABASE db1 COLLATE latin1_bin 
+result	CHARACTER SET latin1 COLLATE latin1_bin
+---	---
+clause0	
+clause1	COLLATE latin1_swedish_ci
+query	CREATE DATABASE db1  COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	COLLATE latin1_swedish_ci
+clause1	
+query	CREATE DATABASE db1 COLLATE latin1_swedish_ci 
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	
+clause1	COLLATE utf8mb4_bin
+query	CREATE DATABASE db1  COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+---	---
+clause0	COLLATE utf8mb4_bin
+clause1	
+query	CREATE DATABASE db1 COLLATE utf8mb4_bin 
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+---	---
+clause0	
+clause1	COLLATE utf8mb4_general_ci
+query	CREATE DATABASE db1  COLLATE utf8mb4_general_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	COLLATE utf8mb4_general_ci
+clause1	
+query	CREATE DATABASE db1 COLLATE utf8mb4_general_ci 
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT 
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1  CHARACTER SET DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	CHARACTER SET DEFAULT
+clause1	COLLATE DEFAULT
+query	CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	COLLATE DEFAULT
+clause1	CHARACTER SET DEFAULT
+query	CREATE DATABASE db1 COLLATE DEFAULT CHARACTER SET DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	CHARACTER SET latin1
+clause1	
+query	CREATE DATABASE db1 CHARACTER SET latin1 
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1  CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE DEFAULT
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE DEFAULT
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	COLLATE DEFAULT
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE DEFAULT CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE latin1_bin
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE latin1_bin
+result	CHARACTER SET latin1 COLLATE latin1_bin
+---	---
+clause0	COLLATE latin1_bin
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE latin1_bin CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_bin
+---	---
+clause0	CHARACTER SET latin1
+clause1	COLLATE latin1_swedish_ci
+query	CREATE DATABASE db1 CHARACTER SET latin1 COLLATE latin1_swedish_ci
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	COLLATE latin1_swedish_ci
+clause1	CHARACTER SET latin1
+query	CREATE DATABASE db1 COLLATE latin1_swedish_ci CHARACTER SET latin1
+result	CHARACTER SET latin1 COLLATE latin1_swedish_ci
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1  CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE DEFAULT
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE DEFAULT
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	COLLATE DEFAULT
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE DEFAULT CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE uca1400_ai_ci
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+---	---
+clause0	COLLATE uca1400_ai_ci
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE uca1400_ai_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE utf8mb4_bin
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+---	---
+clause0	COLLATE utf8mb4_bin
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE utf8mb4_bin CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+---	---
+clause0	CHARACTER SET utf8mb4
+clause1	COLLATE utf8mb4_general_ci
+query	CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+clause0	COLLATE utf8mb4_general_ci
+clause1	CHARACTER SET utf8mb4
+query	CREATE DATABASE db1 COLLATE utf8mb4_general_ci CHARACTER SET utf8mb4
+result	CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+---	---
+CALL delete_err_conflict('CHARACTER SET DEFAULT', 'COLLATE (latin1_|utf8mb4_)',
+'CHARACTER SET DEFAULT.*COLLATE',
+'COLLATE.*CHARACTER SET DEFAULT');
+ROW_COUNT_CS_CL
+4
+ROW_COUNT_CL_CS
+4
+CALL delete_err_generic('CHARACTER SET latin1', 'COLLATE (utf8mb4_|uca1400_)',
+'COLLATION.*is not valid for CHARACTER SET.*latin1');
+ROW_COUNT_CS_CL
+3
+ROW_COUNT_CL_CS
+3
+CALL delete_err_generic('CHARACTER SET utf8mb4', 'COLLATE latin1_',
+'COLLATION.*is not valid for CHARACTER SET.*utf8mb4');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+2
+CALL delete_err_generic('CHARACTER SET DEFAULT', 'COLLATE uca1400_',
+'COLLATION.*uca1400_.*is not valid for CHARACTER SET.*latin1');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_err_generic('^$', 'COLLATE uca1400_',
+'COLLATION.*uca1400_.*is not valid for CHARACTER SET.*latin1');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('^$', '^$', 'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+0
+CALL delete_ok('^$', 'COLLATE DEFAULT',
+'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('^$','COLLATE latin1_',
+'CHARACTER SET latin1',  'COLLATE latin1_');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+2
+CALL delete_ok('^$', 'COLLATE utf8mb4_',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+2
+CALL delete_ok('CHARACTER SET DEFAULT', '^$',
+'CHARACTER SET latin1', 'COLLATE latin1_');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET DEFAULT', 'COLLATE DEFAULT',
+'CHARACTER SET latin1', 'COLLATE latin1_');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET latin1', 'COLLATE latin1_',
+'CHARACTER SET latin1', 'COLLATE latin1_');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+2
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE utf8mb4_',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+ROW_COUNT_CS_CL
+2
+ROW_COUNT_CL_CS
+2
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE uca1400_',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_uca1400_');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET latin1', '^$',
+'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET utf8mb4', '^$',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_general_ci');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET latin1', 'COLLATE DEFAULT',
+'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE DEFAULT',
+'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_general_ci');
+ROW_COUNT_CS_CL
+1
+ROW_COUNT_CL_CS
+1
+# Expect empty set
+SELECT *, '---' AS `---` FROM results WHERE result LIKE 'ERROR%';
+# Expect empty set
+SELECT *, '---' AS `---` FROM results WHERE result NOT LIKE 'ERROR%';
+DROP PROCEDURE populate_all;
+DROP PROCEDURE populate_one;
+DROP PROCEDURE delete_err_conflict;
+DROP PROCEDURE delete_err_generic;
+DROP PROCEDURE delete_ok;
+DROP VIEW results_statistics;
+DROP TABLE results;
+DROP TABLE cs, cl;
+#
+# End of 10.9 tests
+#

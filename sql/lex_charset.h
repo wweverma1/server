@@ -16,6 +16,8 @@
 #ifndef LEX_CHARSET_INCLUDED
 #define LEX_CHARSET_INCLUDED
 
+#include "mysys_charset.h"   // Charset_loader_mysys
+
 /*
   Parse time character set and collation.
 
@@ -65,10 +67,14 @@ public:
 protected:
   CHARSET_INFO *m_ci;
   Type m_type;
+
+  static void
+  error_conflicting_collations_or_styles(const Lex_charset_collation_st &a,
+                                         const Lex_charset_collation_st &b);
 public:
-  static CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs);
-  static CHARSET_INFO *find_default_collation(CHARSET_INFO *cs);
-public:
+
+  static Lex_charset_collation_st get_by_name_or_error(const char *name,
+                                                       myf utf8_flag);
   void init()
   {
     m_ci= NULL;
@@ -84,16 +90,20 @@ public:
     m_ci= cs;
     m_type= TYPE_CHARACTER_SET;
   }
-  void set_charset_collate_default(CHARSET_INFO *cs)
+  bool set_charset_collate_default(CHARSET_INFO *cs)
   {
     DBUG_ASSERT(cs);
+    if (!(cs->state & MY_CS_PRIMARY) &&
+        !(cs= Charset_loader_mysys().find_default_collation(cs)))
+      return true;
     m_ci= cs;
     m_type= TYPE_COLLATE_EXACT;
+    return false;
   }
   bool set_charset_collate_binary(CHARSET_INFO *cs)
   {
     DBUG_ASSERT(cs);
-    if (!(cs= find_bin_collation(cs)))
+    if (!(cs= Charset_loader_mysys().find_bin_collation_or_error(cs)))
       return true;
     m_ci= cs;
     m_type= TYPE_COLLATE_EXACT;
@@ -125,6 +135,12 @@ public:
     m_ci= cl;
     m_type= TYPE_COLLATE_EXACT;
   }
+  void set_collate_contextually_typed(CHARSET_INFO *cl)
+  {
+    DBUG_ASSERT(cl);
+    m_ci= cl;
+    m_type= TYPE_COLLATE_CONTEXTUALLY_TYPED;
+  }
   CHARSET_INFO *charset_collation() const
   {
     return m_ci;
@@ -137,9 +153,43 @@ public:
   {
     return m_type == TYPE_COLLATE_CONTEXTUALLY_TYPED;
   }
+  /*
+    Skip the character set prefix, return the suffix.
+      utf8mb4_uca1400_as_ci -> uca1400_as_ci
+  */
+  LEX_CSTRING collation_name_context_suffix() const
+  {
+    return m_ci->get_collation_name(MY_COLLATION_NAME_MODE_CONTEXT);
+  }
+  LEX_CSTRING collation_name_for_show() const;
   CHARSET_INFO *resolved_to_character_set(CHARSET_INFO *cs) const;
   bool merge_charset_clause_and_collate_clause(const Lex_charset_collation_st &cl);
   bool merge_collate_clause_and_collate_clause(const Lex_charset_collation_st &cl);
+  bool merge_unordered_charset_exact(CHARSET_INFO *cs);
+  bool merge_unordered_collate_clause(const Lex_charset_collation_st &cl);
+};
+
+
+/*
+  An extension for Lex_charset_collation_st.
+  Additionally supports CHARACTER SET DEFAULT.
+*/
+class Lex_maybe_default_charset_collation_st: public Lex_charset_collation_st
+{
+protected:
+  bool m_had_charset_default;
+public:
+  void init()
+  {
+    Lex_charset_collation_st::init();
+    m_had_charset_default= false;
+  }
+  CHARSET_INFO *resolved_to_character_set(CHARSET_INFO *upper_level_default,
+                                          CHARSET_INFO *current_level_default)
+                                          const;
+  bool merge_unordered_charset_default();
+  bool merge_unordered_charset_exact(CHARSET_INFO *cs);
+  bool merge_unordered_collate_clause(const Lex_charset_collation_st &cl);
 };
 
 
@@ -187,6 +237,11 @@ public:
     m_ci= collation;
     m_type= type;
   }
+  explicit Lex_charset_collation(const Lex_explicit_charset_opt_collate &cscl)
+   :Lex_charset_collation(cscl.charset_and_collation(),
+                          cscl.with_collate() ? TYPE_COLLATE_EXACT :
+                                                TYPE_CHARACTER_SET)
+  { }
   static Lex_charset_collation national(bool bin_mod)
   {
     return bin_mod ?
@@ -195,5 +250,15 @@ public:
   }
 };
 
+
+class Lex_maybe_default_charset_collation:
+  public Lex_maybe_default_charset_collation_st
+{
+public:
+  Lex_maybe_default_charset_collation()
+  {
+    init();
+  }
+};
 
 #endif // LEX_CHARSET_INCLUDED

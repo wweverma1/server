@@ -211,6 +211,7 @@ bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
   part_table->use_all_columns();
   table->use_all_columns();
   if (unlikely(mysql_prepare_alter_table(thd, part_table, &part_create_info,
+                                         Lex_maybe_default_charset_collation(),
                                          &part_alter_info, &part_alter_ctx)))
   {
     my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));

@@ -3728,14 +3728,11 @@ bool Item_func_set_collation::fix_length_and_dec()
 {
   if (agg_arg_charsets_for_string_result(collation, args, 1))
     return true;
-  if (!my_charset_same(collation.collation, m_set_collation))
-  {
-    my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-             m_set_collation->coll_name.str,
-             collation.collation->cs_name.str);
-    return TRUE;
-  }
-  collation.set(m_set_collation, DERIVATION_EXPLICIT,
+  // Pass "false" to avoid conflicting collations error
+  Lex_explicit_charset_opt_collate cl(collation.collation, false);
+  if (cl.merge_collate_or_error(m_set_collation))
+    return true;
+  collation.set(cl.charset_and_collation(), DERIVATION_EXPLICIT,
                 args[0]->collation.repertoire);
   max_length= args[0]->max_length;
   return FALSE;
@@ -3753,7 +3750,7 @@ void Item_func_set_collation::print(String *str, enum_query_type query_type)
 {
   args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" collate "));
-  str->append(m_set_collation->coll_name);
+  str->append(m_set_collation.collation_name_for_show());
 }
 
 String *Item_func_charset::val_str(String *str)
@@ -3785,7 +3782,7 @@ bool Item_func_weight_string::fix_length_and_dec()
 {
   CHARSET_INFO *cs= args[0]->collation.collation;
   collation.set(&my_charset_bin, args[0]->collation.derivation);
-  weigth_flags= my_strxfrm_flag_normalize(weigth_flags, cs->levels_for_order);
+  weigth_flags= my_strxfrm_flag_normalize(cs, weigth_flags);
   /* 
     Use result_length if it was given explicitly in constructor,
     otherwise calculate max_length using argument's max_length
@@ -3795,7 +3792,8 @@ bool Item_func_weight_string::fix_length_and_dec()
   {
     size_t char_length;
     char_length= ((cs->state & MY_CS_STRNXFRM_BAD_NWEIGHTS) || !nweights) ?
-                 args[0]->max_char_length() : nweights * cs->levels_for_order;
+                 args[0]->max_char_length() : nweights *
+                 my_count_bits_uint32(cs->levels_for_order);
     max_length= (uint32) cs->strnxfrmlen(char_length * cs->mbmaxlen);
   }
   set_maybe_null();

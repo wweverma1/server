@@ -546,6 +546,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
   result= mysql_alter_table(thd, &select_lex->db, &lex->name,
                             &create_info,
+                            lex->create_info.default_charset_collation,
                             first_table,
                             &alter_info,
                             select_lex->order_list.elements,

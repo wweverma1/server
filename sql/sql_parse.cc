@@ -4206,7 +4206,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
 
     res= mysql_alter_table(thd, &first_table->db, &first_table->table_name,
-                           &create_info, first_table, &alter_info,
+                           &create_info, Lex_maybe_default_charset_collation(),
+                           first_table, &alter_info,
                            0, (ORDER*) 0, 0, lex->if_exists());
     break;
   }
@@ -5159,6 +5160,12 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                           &lex->name))
       break;
 
+    if ((res= !(lex->create_info.default_table_charset=
+                 lex->create_info.default_charset_collation.
+                   resolved_to_character_set(thd->variables.collation_server,
+                                             thd->variables.collation_server))))
+      break;
+
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
 
     res= mysql_create_db(thd, &lex->name,
@@ -5218,6 +5225,13 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   {
     LEX_CSTRING *db= &lex->name;
     if (prepare_db_action(thd, ALTER_ACL, db))
+      break;
+
+    if ((res= !(lex->create_info.default_table_charset=
+                 lex->create_info.default_charset_collation.
+                   resolved_to_character_set(thd->variables.collation_server,
+                                             get_default_db_collation(
+                                               thd, lex->name.str)))))
       break;
 
     WSREP_TO_ISOLATION_BEGIN(db->str, NULL, NULL);
@@ -10428,40 +10442,6 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
   @} (end of group Runtime_Environment)
 */
 
-
-
-/**
-  Check and merge "CHARACTER SET cs [ COLLATE cl ]" clause
-
-  @param cs character set pointer.
-  @param cl collation pointer.
-
-  Check if collation "cl" is applicable to character set "cs".
-
-  If "cl" is NULL (e.g. when COLLATE clause is not specified),
-  then simply "cs" is returned.
-  
-  @return Error status.
-    @retval NULL, if "cl" is not applicable to "cs".
-    @retval pointer to merged CHARSET_INFO on success.
-*/
-
-
-CHARSET_INFO*
-merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl)
-{
-  if (cl)
-  {
-    if (!my_charset_same(cs, cl))
-    {
-      my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl->coll_name.str,
-               cs->cs_name.str);
-      return NULL;
-    }
-    return cl;
-  }
-  return cs;
-}
 
 void LEX::mark_first_table_as_inserting()
 {

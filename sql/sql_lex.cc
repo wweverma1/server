@@ -542,6 +542,30 @@ bool LEX::add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists)
 }
 
 
+bool LEX::add_alter_list_item_convert_to_charset(
+                                             THD *thd,
+                                             CHARSET_INFO *cs,
+                                             const Lex_charset_collation_st &cl)
+{
+  if (!cs)
+  {
+    Lex_charset_collation_st tmp;
+    tmp.set_charset_collate_default(thd->variables.collation_database);
+    if (!(cs= tmp.charset_collation()))
+      return true; // Should not actually happen
+  }
+
+  Lex_explicit_charset_opt_collate tmp(cs, false);
+  if (tmp.merge_opt_collate_or_error(cl) ||
+      create_info.add_alter_list_item_convert_to_charset(
+                    Lex_charset_collation(tmp)))
+    return true;
+
+  alter_info.flags|= ALTER_CONVERT_TO;
+  return false;
+}
+
+
 void LEX::init_last_field(Column_definition *field,
                           const LEX_CSTRING *field_name)
 {

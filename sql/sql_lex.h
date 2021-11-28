@@ -4380,6 +4380,9 @@ public:
   bool add_alter_list(LEX_CSTRING par_name, Virtual_column_info *expr,
                       bool par_exists);
   bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists);
+  bool add_alter_list_item_convert_to_charset(THD *thd,
+                                           CHARSET_INFO *cs,
+                                           const Lex_charset_collation_st &cl);
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {

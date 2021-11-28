@@ -19,6 +19,7 @@
 
 #include <my_sys.h>                             // pthread_mutex_t
 #include "m_string.h"                           // LEX_CUSTRING
+#include "lex_charset.h"
 
 #define ERROR_INJECT(code) \
   ((DBUG_IF("crash_" code) && (DBUG_SUICIDE(), 0)) || \
@@ -157,6 +158,8 @@ int mysql_discard_or_import_tablespace(THD *thd,
 
 bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                HA_CREATE_INFO *create_info,
+                               const Lex_maybe_default_charset_collation_st
+                                 &default_cscl,
                                Alter_info *alter_info,
                                Alter_table_ctx *alter_ctx);
 bool mysql_trans_prepare_alter_copy_data(THD *thd);
@@ -164,6 +167,8 @@ bool mysql_trans_commit_alter_copy_data(THD *thd);
 bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
                        HA_CREATE_INFO *create_info,
+                       const Lex_maybe_default_charset_collation_st
+                         &default_cscl,
                        TABLE_LIST *table_list,
                        Alter_info *alter_info,
                        uint order_num, ORDER *order, bool ignore,

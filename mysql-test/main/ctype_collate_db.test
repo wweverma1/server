@@ -1,0 +1,400 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-27743 Remove Lex::charset
+--echo #
+
+# Iterate through all possible combinations of this grammar:
+#
+# CREATE DATABASE db1 {CHARACTER SET cs_or_default| COLLATE cl_or_default}..
+#
+# and check that:
+# - either the table gets the expected character set and collation
+# - or the expected error is returned
+
+
+CREATE TABLE cs (cs VARCHAR(64) NOT NULL);
+INSERT INTO cs (cs) VALUES
+(''),
+('CHARACTER SET DEFAULT'),
+('CHARACTER SET latin1'),
+('CHARACTER SET utf8mb4');
+
+CREATE TABLE cl (cl VARCHAR(64) NOT NULL);
+INSERT INTO cl (cl) VALUES
+(''),
+('COLLATE DEFAULT'),
+('COLLATE latin1_bin'),
+('COLLATE latin1_swedish_ci'),
+('COLLATE utf8mb4_bin'),
+('COLLATE utf8mb4_general_ci'),
+('COLLATE uca1400_ai_ci');
+
+
+CREATE TABLE results
+(
+  clause0 VARCHAR(64),
+  clause1 VARCHAR(64),
+  query VARCHAR(1024),
+  result VARCHAR(1024)
+);
+
+CREATE VIEW results_statistics AS
+SELECT
+  SUM(result NOT LIKE 'ERROR%') AS ok,
+  SUM(result LIKE 'ERROR%') AS err,
+  COUNT(*)
+FROM results;
+
+#
+# Execute one CREATE DATABASE statement and write the result
+# into the table "results".
+#
+# The column results.result is set as follows:
+# - In case of an erroneous statement it's set to the error message
+# - In case of a successfull statement, it's set to the string in the form
+#   "CHARACTER SET cs COLLATE cl", where
+#   cs is taken from I_S.SCHEMATA.DEFAULT_CHARACTER_SET_NAME
+#   cl is taken from I_S.SCHEMATA.DEFAULT_COLLATION_NAME
+#
+# After the table "results" is populated with all combinations,
+# it's analyzed:
+# - all expected combinations are deleted from "results".
+# - at the end we make sure "results" is empty
+#
+
+DELIMITER $$;
+CREATE PROCEDURE populate_one(clause0 TEXT, clause1 TEXT)
+BEGIN
+  DECLARE errstate TEXT DEFAULT NULL;
+  DECLARE errno INT DEFAULT NULL;
+  DECLARE errmsg TEXT DEFAULT NULL;
+  DECLARE result TEXT;
+  DECLARE query TEXT;
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+  BEGIN
+    GET DIAGNOSTICS CONDITION 1 errstate = RETURNED_SQLSTATE,
+      errno = MYSQL_ERRNO, errmsg = MESSAGE_TEXT;
+  END;
+
+  SET query= CONCAT('CREATE DATABASE db1 ', clause0, ' ', clause1);
+  EXECUTE IMMEDIATE query;
+
+  IF errmsg IS NOT NULL
+  THEN
+    SET result=CONCAT('ERROR: ',
+                      COALESCE(errstate,'<NULL>'), ' ',
+                      COALESCE(errno,'<NULL>'), ' ',
+                      COALESCE(errmsg,'<NULL>'));
+    INSERT INTO results (clause0,clause1,query,result)
+                 VALUES (clause0,clause1,query,result);
+  ELSE
+    FOR row IN (SELECT
+                  CONCAT('CHARACTER SET ', DEFAULT_CHARACTER_SET_NAME,
+                         ' COLLATE ', DEFAULT_COLLATION_NAME) AS result
+                FROM INFORMATION_SCHEMA.SCHEMATA
+                WHERE SCHEMA_NAME='db1')
+    DO
+      INSERT INTO results (clause0,clause1,query,result)
+                   VALUES (clause0,clause1,query,row.result);
+    END FOR;
+    DROP DATABASE db1;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE populate_all()
+BEGIN
+  FOR row IN (
+    SELECT cs AS clause0, cl AS clause1
+    FROM cs, cl
+    ORDER BY cs, cl
+  )
+  DO
+    CALL populate_one(row.clause0, row.clause1);
+    CALL populate_one(row.clause1, row.clause0);
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE delete_ok(cs_create VARCHAR(64),
+                           cl_create VARCHAR(64),
+                           cs_result VARCHAR(64),
+                           cl_result VARCHAR(64))
+BEGIN
+  DELETE FROM results
+  WHERE
+     clause0 RLIKE cs_create
+     AND clause1 RLIKE cl_create
+     AND result RLIKE CONCAT('^',cs_result,'.*',cl_result);
+  SELECT ROW_COUNT() AS ROW_COUNT_CS_CL;
+  DELETE FROM results
+  WHERE
+     clause1 RLIKE cs_create
+     AND clause0 RLIKE cl_create
+     AND result RLIKE CONCAT('^',cs_result,'.*',cl_result);
+  SELECT ROW_COUNT() AS ROW_COUNT_CL_CS;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE delete_err_conflict(cs_create VARCHAR(64),
+                                     cl_create VARCHAR(64),
+                                     cs_cl_error VARCHAR(64),
+                                     cl_cs_error VARCHAR(64))
+BEGIN
+  DELETE FROM results
+  WHERE clause0 RLIKE cs_create
+    AND clause1 RLIKE cl_create
+    AND result RLIKE CONCAT('Conflicting declarations.*', cs_cl_error);
+  SELECT ROW_COUNT() AS ROW_COUNT_CS_CL;
+  DELETE FROM results
+  WHERE clause1 RLIKE cs_create
+    AND clause0 RLIKE cl_create
+    AND result RLIKE CONCAT('Conflicting declarations.*', cl_cs_error);
+  SELECT ROW_COUNT() AS ROW_COUNT_CL_CS;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE delete_err_generic(cs_create VARCHAR(64),
+                                    cl_create VARCHAR(64),
+                                    err VARCHAR(64))
+BEGIN
+  DELETE FROM results
+  WHERE
+    (clause0 RLIKE cs_create
+     AND clause1 RLIKE cl_create
+     AND result RLIKE err);
+  SELECT ROW_COUNT() AS ROW_COUNT_CS_CL;
+  DELETE FROM results
+  WHERE
+    (clause1 RLIKE cs_create
+     AND clause0 RLIKE cl_create
+     AND result RLIKE err);
+  SELECT ROW_COUNT() AS ROW_COUNT_CL_CS;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Testing with utf8mb4 as the server character set
+--echo #
+
+--disable_column_names
+SET character_set_server=utf8mb4;
+CALL populate_all();
+SET character_set_server=DEFAULT;
+--enable_column_names
+
+SELECT * FROM results_statistics;
+--vertical_results
+SELECT *, '---' AS `---` FROM results WHERE result LIKE 'ERROR%';
+SELECT *, '---' AS `---` FROM results WHERE result NOT LIKE 'ERROR%';
+--horizontal_results
+
+
+# Deleting expected erroneous results
+
+CALL delete_err_conflict('CHARACTER SET DEFAULT', 'COLLATE (latin1_|utf8mb4_)',
+                         'CHARACTER SET DEFAULT.*COLLATE',
+                         'COLLATE.*CHARACTER SET DEFAULT');
+
+CALL delete_err_generic('CHARACTER SET latin1', 'COLLATE (utf8mb4_|uca1400_)',
+                        'COLLATION.*is not valid for CHARACTER SET.*latin1');
+
+CALL delete_err_generic('CHARACTER SET utf8mb4', 'COLLATE latin1_',
+                        'COLLATION.*is not valid for CHARACTER SET.*utf8mb4');
+
+
+# Deleting expected successful results
+
+
+# Empty CHARACTER SET + empty COLLATE
+
+CALL delete_ok('^$', '^$', 'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+
+# Empty CHARACTER SET + COLLATE DEFAULT
+
+CALL delete_ok('^$', 'COLLATE DEFAULT',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_general_ci');
+
+# Empty CHARACTER SET + explicit COLLATE
+
+CALL delete_ok('^$','COLLATE latin1_',
+               'CHARACTER SET latin1',  'COLLATE latin1_');
+CALL delete_ok('^$', 'COLLATE utf8mb4_',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+CALL delete_ok('^$','COLLATE uca1400_',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_uca1400_');
+
+# CHARACTER SET DEFAULT + empty COLLATE
+
+CALL delete_ok('CHARACTER SET DEFAULT', '^$',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+
+# CHARACTER SET DEFAULT + COLLATE DEFAULT
+
+CALL delete_ok('CHARACTER SET DEFAULT', 'COLLATE DEFAULT',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+
+# CHARACTER SET DEFAULT + explicit COLLATE
+
+CALL delete_ok('CHARACTER SET DEFAULT', 'COLLATE uca1400_',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_uca1400_');
+
+# Explicit CHARACTER SET + explicit COLLATE
+
+CALL delete_ok('CHARACTER SET latin1', 'COLLATE latin1_',
+               'CHARACTER SET latin1', 'COLLATE latin1_');
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE utf8mb4_',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE uca1400_',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_uca1400_');
+
+# Explicit CHARACTER SET + empty COLLATE
+
+CALL delete_ok('CHARACTER SET latin1', '^$',
+               'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+CALL delete_ok('CHARACTER SET utf8mb4', '^$',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_general_ci');
+
+# Explicit CHARACTER SET + COLLATE DEFAULT
+
+CALL delete_ok('CHARACTER SET latin1', 'COLLATE DEFAULT',
+               'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE DEFAULT',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_general_ci');
+
+--vertical_results
+--echo # Expect empty set
+SELECT *, '---' AS `---` FROM results WHERE result LIKE 'ERROR%';
+--echo # Expect empty set
+SELECT *, '---' AS `---` FROM results WHERE result NOT LIKE 'ERROR%';
+--horizontal_results
+
+
+--echo #
+--echo # Testing with latin1 as the server character set
+--echo #
+
+--disable_column_names
+SET character_set_server=latin1;
+TRUNCATE TABLE results;
+CALL populate_all();
+SET character_set_server=DEFAULT;
+--enable_column_names
+
+SELECT * FROM results_statistics;
+--vertical_results
+SELECT *, '---' AS `---` FROM results WHERE result LIKE 'ERROR%';
+SELECT *, '---' AS `---` FROM results WHERE result NOT LIKE 'ERROR%';
+--horizontal_results
+
+# Delete expected erroneoust results
+
+CALL delete_err_conflict('CHARACTER SET DEFAULT', 'COLLATE (latin1_|utf8mb4_)',
+                         'CHARACTER SET DEFAULT.*COLLATE',
+                         'COLLATE.*CHARACTER SET DEFAULT');
+
+CALL delete_err_generic('CHARACTER SET latin1', 'COLLATE (utf8mb4_|uca1400_)',
+                        'COLLATION.*is not valid for CHARACTER SET.*latin1');
+
+CALL delete_err_generic('CHARACTER SET utf8mb4', 'COLLATE latin1_',
+                        'COLLATION.*is not valid for CHARACTER SET.*utf8mb4');
+
+CALL delete_err_generic('CHARACTER SET DEFAULT', 'COLLATE uca1400_',
+                         'COLLATION.*uca1400_.*is not valid for CHARACTER SET.*latin1');
+
+CALL delete_err_generic('^$', 'COLLATE uca1400_',
+                         'COLLATION.*uca1400_.*is not valid for CHARACTER SET.*latin1');
+
+# Deleting expected successful results
+
+# Empty CHARACTER SET + empty COLLATE
+
+CALL delete_ok('^$', '^$', 'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+
+# Empty CHARACTER SET + COLLATE DEFAULT
+
+CALL delete_ok('^$', 'COLLATE DEFAULT',
+               'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+
+# Empty CHARACTER SET + explicit COLLATE
+
+CALL delete_ok('^$','COLLATE latin1_',
+               'CHARACTER SET latin1',  'COLLATE latin1_');
+CALL delete_ok('^$', 'COLLATE utf8mb4_',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+
+# CHARACTER SET DEFAULT + empty COLLATE
+
+CALL delete_ok('CHARACTER SET DEFAULT', '^$',
+               'CHARACTER SET latin1', 'COLLATE latin1_');
+
+# CHARACTER SET DEFAULT + COLLATE DEFAULT
+
+CALL delete_ok('CHARACTER SET DEFAULT', 'COLLATE DEFAULT',
+               'CHARACTER SET latin1', 'COLLATE latin1_');
+
+# Explicit CHARACTER SET + explicit COLLATE
+
+CALL delete_ok('CHARACTER SET latin1', 'COLLATE latin1_',
+               'CHARACTER SET latin1', 'COLLATE latin1_');
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE utf8mb4_',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_');
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE uca1400_',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_uca1400_');
+
+# Explicit CHARACTER SET + empty COLLATE
+
+CALL delete_ok('CHARACTER SET latin1', '^$',
+               'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+CALL delete_ok('CHARACTER SET utf8mb4', '^$',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_general_ci');
+
+# Explicit CHARACTER SET + COLLATE DEFAULT
+
+CALL delete_ok('CHARACTER SET latin1', 'COLLATE DEFAULT',
+               'CHARACTER SET latin1', 'COLLATE latin1_swedish_ci');
+CALL delete_ok('CHARACTER SET utf8mb4', 'COLLATE DEFAULT',
+               'CHARACTER SET utf8mb4', 'COLLATE utf8mb4_general_ci');
+
+--vertical_results
+--echo # Expect empty set
+SELECT *, '---' AS `---` FROM results WHERE result LIKE 'ERROR%';
+--echo # Expect empty set
+SELECT *, '---' AS `---` FROM results WHERE result NOT LIKE 'ERROR%';
+--horizontal_results
+
+
+
+DROP PROCEDURE populate_all;
+DROP PROCEDURE populate_one;
+DROP PROCEDURE delete_err_conflict;
+DROP PROCEDURE delete_err_generic;
+DROP PROCEDURE delete_ok;
+DROP VIEW results_statistics;
+DROP TABLE results;
+DROP TABLE cs, cl;
+
+
+
+
+--echo #
+--echo # End of 10.9 tests
+--echo #

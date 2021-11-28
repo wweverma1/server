@@ -45,6 +45,7 @@
 #include "ha_sequence.h"
 #include "sql_show.h"
 #include "opt_trace.h"
+#include "sql_db.h"              // get_default_db_collation
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -3453,6 +3454,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
                                         const char *sql, size_t sql_length)
 {
   CHARSET_INFO *old_cs= thd->variables.character_set_client;
+  CHARSET_INFO *db_cs= NULL;
   Parser_state parser_state;
   bool error;
   char *sql_copy;
@@ -3491,12 +3493,27 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   else
     thd->set_n_backup_active_arena(arena, &backup);
 
+  /*
+    THD::reset_db() does not set THD::db_charset,
+    so it keeps pointing to the character set and collation
+    of the current database, rather than the database of the
+    new initialized table.
+    Let's call get_default_db_collation() before reset_db().
+    This forces the db.opt file to be loaded.
+  */
+  db_cs= get_default_db_collation(thd, db.str);
+
   thd->reset_db(&db);
   lex_start(thd);
 
   if (unlikely((error= parse_sql(thd, & parser_state, NULL) ||
                 sql_unusable_for_discovery(thd, hton, sql_copy))))
     goto ret;
+
+  if (!(thd->lex->create_info.default_table_charset=
+         thd->lex->create_info.default_charset_collation.
+           resolved_to_character_set(db_cs, db_cs)))
+    DBUG_RETURN(true);
 
   thd->lex->create_info.db_type= hton;
 #ifdef WITH_PARTITION_STORAGE_ENGINE

@@ -5297,6 +5297,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   local_create_info.row_type= src_table->table->s->row_type;
   local_create_info.alter_info= &local_alter_info;
   if (mysql_prepare_alter_table(thd, src_table->table, &local_create_info,
+                                create_info->default_charset_collation,
                                 &local_alter_info, &local_alter_ctx))
     goto err;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -7950,6 +7951,8 @@ void append_drop_column(THD *thd, String *str, Field *field)
 bool
 mysql_prepare_alter_table(THD *thd, TABLE *table,
                           HA_CREATE_INFO *create_info,
+                          const Lex_maybe_default_charset_collation_st
+                            &default_cscl,
                           Alter_info *alter_info,
                           Alter_table_ctx *alter_ctx)
 {
@@ -8015,6 +8018,16 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     create_info->avg_row_length= table->s->avg_row_length;
   if (!(used_fields & HA_CREATE_USED_DEFAULT_CHARSET))
     create_info->default_table_charset= table->s->table_charset;
+  else
+  {
+    DBUG_ASSERT(!create_info->default_table_charset ||
+                thd->stmt_arena->is_stmt_execute());
+    CHARSET_INFO *dbcs= get_default_db_collation(thd, table->s->db.str);
+    if (!(create_info->default_table_charset=
+          default_cscl.resolved_to_character_set(dbcs,
+                                                 table->s->table_charset)))
+      DBUG_RETURN(true);
+  }
   if (!(used_fields & HA_CREATE_USED_AUTO) && table->found_next_number_field)
   {
     /* Table has an autoincrement, copy value to new table */
@@ -9764,6 +9777,8 @@ static uint64 get_start_alter_id(THD *thd)
 bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
                        HA_CREATE_INFO *create_info,
+                       const Lex_maybe_default_charset_collation_st
+                         &default_cscl,
                        TABLE_LIST *table_list,
                        Alter_info *alter_info,
                        uint order_num, ORDER *order, bool ignore,
@@ -10337,13 +10352,14 @@ do_continue:;
   }
 #endif
 
-  if (mysql_prepare_alter_table(thd, table, create_info, alter_info,
-                                &alter_ctx))
+  if (mysql_prepare_alter_table(thd, table, create_info,
+                                default_cscl,
+                                alter_info, &alter_ctx))
   {
     DBUG_RETURN(true);
   }
 
-  set_table_default_charset(thd, create_info, alter_ctx.db);
+  DBUG_ASSERT(create_info->default_table_charset);
 
   if (create_info->check_fields(thd, alter_info,
                                 table_list->table_name, table_list->db) ||
@@ -11801,6 +11817,7 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
       Alter_info::ALTER_TABLE_ALGORITHM_COPY);
 
   bool res= mysql_alter_table(thd, &null_clex_str, &null_clex_str, &create_info,
+                              Lex_maybe_default_charset_collation(),
                               table_list, &alter_info, 0,
                               (ORDER *) 0, 0, 0);
   table_list->next_global= next_table;
@@ -12046,6 +12063,13 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
   const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
   DBUG_ASSERT((m_storage_engine_name.str != NULL) == used_engine);
+
+  CHARSET_INFO *cs= get_default_db_collation(thd, first_table->db.str);
+  if (!(lex->create_info.default_table_charset=
+          lex->create_info.default_charset_collation.
+            resolved_to_character_set(cs, cs)))
+    DBUG_RETURN(true);
+
   if (used_engine)
   {
     if (resolve_storage_engine_with_error(thd, &lex->create_info.db_type,
@@ -12355,4 +12379,22 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
 end_with_restore_list:
   DBUG_RETURN(res);
+}
+
+
+bool Table_specification_st::add_table_option_default_charset(CHARSET_INFO *cs)
+{
+  // cs can be NULL, e.g.:  CREATE TABLE t1 (..) CHARACTER SET DEFAULT;
+  used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
+  if (!cs)
+    return default_charset_collation.merge_unordered_charset_default();
+  return default_charset_collation.merge_unordered_charset_exact(cs);
+}
+
+
+bool Table_specification_st::
+       add_table_option_default_collation(const Lex_charset_collation_st &cl)
+{
+  used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
+  return default_charset_collation.merge_unordered_collate_clause(cl);
 }
