@@ -3221,7 +3221,15 @@ double handler::keyread_time(uint index, uint ranges, ha_rows rows)
   len= table->key_info[index].key_length + ref_length;
   if (table->file->is_clustering_key(index))
     len= table->s->stored_rec_length;
-  cost= (double)rows*len/(stats.block_size+1)*INDEX_BLOCK_COPY_COST;
+
+  cost= ((double)rows*len/(stats.block_size+1)*INDEX_BLOCK_COPY_COST);
+  /*
+    We divide the cost with optimizer_cache_cost as ha_keyread_time()
+    and ha_key_scan_time() will multiply the result value with
+    optimizer_cache_cost and we want to keep the above 'memory operation'
+    cost unaffected by this multiplication.
+  */
+  cost/= optimizer_cache_cost;
   if (ranges)
   {
     uint keys_per_block= (uint) (stats.block_size*3/4/len+1);

@@ -618,7 +618,8 @@ void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab)
   Json_writer_object table_rec(thd, "table_scan");
   table_rec.
     add("rows", tab->found_records).
-    add("cost", tab->read_time);
+    add("read_cost", tab->read_time).
+    add("read_and_compare_cost", tab->cached_scan_and_compare_time);
 }
 
 

@@ -2127,6 +2127,10 @@ void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
   DBUG_ENTER("get_sweep_read_cost");
 
   cost->reset();
+#ifndef OLD_SWEEP_COST
+  cost->cpu_cost= table->file->ha_read_with_rowid(nrows);
+  cost->avg_io_cost= table->file->avg_io_cost();
+#else
   if (table->file->pk_is_clustering_key(table->s->primary_key))
   {
     cost->cpu_cost= table->file->ha_read_and_copy_time(table->s->primary_key,
@@ -2152,7 +2156,9 @@ void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
                           DISK_SEEK_PROP_COST*n_blocks/busy_blocks);
     }
   }
-  DBUG_PRINT("info",("returning cost=%g", cost->total_cost()));
+  cost->cpu_cost+= rows2double(n_rows) * RECORD_COPY_COST;
+#endif
+  DBUG_PRINT("info",("returning cost: %g", cost->total_cost()));
   DBUG_VOID_RETURN;
 }
 

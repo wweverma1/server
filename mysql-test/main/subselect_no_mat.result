@@ -929,10 +929,10 @@ a	t1.a in (select t2.a from t2,t3 where t3.a=t2.a)
 explain extended SELECT t1.a, t1.a in (select t2.a from t2,t3 where t3.a=t2.a) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	4	100.00	Using index
-2	DEPENDENT SUBQUERY	t2	ref_or_null	a	a	5	func	2	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DEPENDENT SUBQUERY	t2	index	a	a	5	NULL	3	75.00	Using where; Using index; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,<expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#2 */ select `test`.`t2`.`a` from `test`.`t2` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t2`.`a` and (<cache>(`test`.`t1`.`a`) = `test`.`t2`.`a` or `test`.`t2`.`a` is null) having `test`.`t2`.`a` is null))) AS `t1.a in (select t2.a from t2,t3 where t3.a=t2.a)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,<expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#2 */ select `test`.`t2`.`a` from `test`.`t2` join `test`.`t3` where `test`.`t2`.`a` = `test`.`t3`.`a` and (<cache>(`test`.`t1`.`a`) = `test`.`t2`.`a` or `test`.`t2`.`a` is null) having `test`.`t2`.`a` is null))) AS `t1.a in (select t2.a from t2,t3 where t3.a=t2.a)` from `test`.`t1`
 drop table t1,t2,t3;
 # check correct NULL Processing for normal IN/ALL/ANY
 # and 2 ways of max/min optimization
@@ -1456,21 +1456,21 @@ a
 4
 explain extended select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	index	PRIMARY	PRIMARY	4	NULL	4	100.00	Using index
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	100.00	Using where
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	4	100.00	Using where
+1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	Using index
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = `test`.`t2`.`a` and `test`.`t1`.`b` <> 30
+Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` <> 30
 select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
 a
 2
 3
 explain extended select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	index	PRIMARY	PRIMARY	4	NULL	4	100.00	Using index
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	100.00	
-1	PRIMARY	t3	index	PRIMARY	PRIMARY	4	NULL	3	75.00	Using where; Using index; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	4	100.00	Using where
+1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	Using index
+1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	100.00	Using index
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` join `test`.`t3` join `test`.`t2` where `test`.`t3`.`a` = `test`.`t1`.`b` and `test`.`t1`.`a` = `test`.`t2`.`a`
+Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` join `test`.`t3` join `test`.`t2` where `test`.`t3`.`a` = `test`.`t1`.`b` and `test`.`t2`.`a` = `test`.`t1`.`a`
 drop table t1, t2, t3;
 create table t1 (a int, b int, index a (a,b));
 create table t2 (a int, index a (a));
@@ -1510,7 +1510,7 @@ a
 explain extended select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	index	a	a	5	NULL	4	100.00	Using where; Using index
-1	PRIMARY	t3	range	a	a	5	NULL	3	100.00	Using where; Using index
+1	PRIMARY	t3	index	a	a	5	NULL	3	100.00	Using where; Using index
 1	PRIMARY	t1	ref	a	a	10	test.t2.a,test.t3.a	116	100.00	Using index; FirstMatch(t2)
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t2` semi join (`test`.`t1` join `test`.`t3`) where `test`.`t1`.`b` = `test`.`t3`.`a` and `test`.`t1`.`a` = `test`.`t2`.`a`
@@ -1618,21 +1618,21 @@ a3	1
 explain extended select s1, s1 NOT IN (SELECT s1 FROM t2) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
-2	SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2	index	s1	s1	6	NULL	2	100.00	Using where; Using index
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 NOT IN (SELECT s1 FROM t2)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(/* select#2 */ select `test`.`t2`.`s1` from `test`.`t2` where trigcond(<cache>(`test`.`t1`.`s1`) = `test`.`t2`.`s1` or `test`.`t2`.`s1` is null) having trigcond(`test`.`t2`.`s1` is null)))) AS `s1 NOT IN (SELECT s1 FROM t2)` from `test`.`t1`
 explain extended select s1, s1 = ANY (SELECT s1 FROM t2) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
-2	SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2	index	s1	s1	6	NULL	2	100.00	Using where; Using index
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 = ANY (SELECT s1 FROM t2)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(/* select#2 */ select `test`.`t2`.`s1` from `test`.`t2` where trigcond(<cache>(`test`.`t1`.`s1`) = `test`.`t2`.`s1` or `test`.`t2`.`s1` is null) having trigcond(`test`.`t2`.`s1` is null)))) AS `s1 = ANY (SELECT s1 FROM t2)` from `test`.`t1`
 explain extended select s1, s1 <> ALL (SELECT s1 FROM t2) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
-2	SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2	index	s1	s1	6	NULL	2	100.00	Using where; Using index
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 <> ALL (SELECT s1 FROM t2)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(/* select#2 */ select `test`.`t2`.`s1` from `test`.`t2` where trigcond(<cache>(`test`.`t1`.`s1`) = `test`.`t2`.`s1` or `test`.`t2`.`s1` is null) having trigcond(`test`.`t2`.`s1` is null)))) AS `s1 <> ALL (SELECT s1 FROM t2)` from `test`.`t1`
 explain extended select s1, s1 NOT IN (SELECT s1 FROM t2 WHERE s1 < 'a2') from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
@@ -3118,7 +3118,7 @@ ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	PRIMARY	NULL	NULL	NULL	1	
 1	PRIMARY	r	const	PRIMARY	PRIMARY	4	const	1	
-2	SUBQUERY	t2	range	b	b	40	NULL	3	Using where
+2	SUBQUERY	t2	ref	b	b	5	const	1	Using where
 SELECT sql_no_cache t1.a, r.a, r.b FROM t1 LEFT JOIN t2 r
 ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'
             ORDER BY t2.c DESC, t2.b DESC LIMIT 1) WHERE t1.a = 10;
@@ -3130,7 +3130,7 @@ ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	PRIMARY	NULL	NULL	NULL	1	
 1	PRIMARY	r	const	PRIMARY	PRIMARY	4	const	1	
-2	SUBQUERY	t2	range	b	b	40	NULL	3	Using index condition
+2	SUBQUERY	t2	ref	b	b	5	const	1	Using index condition; Using where
 SELECT sql_no_cache t1.a, r.a, r.b FROM t1 LEFT JOIN t2 r
 ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'
             ORDER BY t2.c, t2.b LIMIT 1) WHERE t1.a = 10;
@@ -4228,8 +4228,8 @@ INSERT INTO t2 VALUES (7), (5), (1), (3);
 SELECT id, st FROM t1
 WHERE st IN ('GA','FL') AND EXISTS(SELECT 1 FROM t2 WHERE t2.id=t1.id);
 id	st
-3	FL
 1	GA
+3	FL
 7	FL
 SELECT id, st FROM t1
 WHERE st IN ('GA','FL') AND EXISTS(SELECT 1 FROM t2 WHERE t2.id=t1.id)
@@ -6633,7 +6633,7 @@ SET @@optimizer_switch='semijoin=off,materialization=off,in_to_exists=on,subquer
 EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT a AS field1 FROM t1 GROUP BY field1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	a	4	NULL	2	Using where; Using index
-2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	4	func	2	Using index
+2	DEPENDENT SUBQUERY	t1	index	a	a	4	NULL	2	Using where; Using index
 SELECT * FROM t1 WHERE a IN (SELECT a AS field1 FROM t1 GROUP BY field1);
 a
 2009-01-01

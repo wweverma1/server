@@ -6806,8 +6806,8 @@ static Sys_var_ulong Sys_optimizer_max_sel_arg_weight(
 static Sys_var_uint Sys_optimizer_cache_cost(
   "optimizer_cache_hit_ratio",
   "Expected hit rate of the row and index cache in storage engines. "
-  "The value should be an integer between 0 and 95, where 0 means cache is "
-  "empty and 95 means that value is almost always in the cache",
+  "The value should be an integer between 0 and 99, where 0 means cache is "
+  "empty and 99 means that value is almost always in the cache",
   SESSION_VAR(optimizer_cache_hit_ratio), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 95), DEFAULT(CACHE_HIT_RATIO), 1, NO_MUTEX_GUARD,
+  VALID_RANGE(0, 99), DEFAULT(CACHE_HIT_RATIO), 1, NO_MUTEX_GUARD,
   NOT_IN_BINLOG);

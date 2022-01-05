@@ -3658,7 +3658,7 @@ public:
     Time for a full table data scan. To be overrided by engines, should not
     be used by the sql level.
   */
-//protected:
+protected:
   virtual double scan_time()
   {
     return (((ulonglong2double(stats.data_file_length) / stats.block_size)) *
@@ -3668,7 +3668,8 @@ public:
 
   inline double ha_scan_time()
   {
-    return scan_time() * optimizer_cache_cost;
+    return (scan_time() * optimizer_cache_cost +
+            TABLE_SCAN_SETUP_COST * avg_io_cost());
   }
 
   /*
@@ -3685,8 +3686,7 @@ public:
 
   inline double ha_scan_and_copy_time(ha_rows records)
   {
-    return (ha_scan_time() + TABLE_SCAN_SETUP_COST * avg_io_cost() +
-            (double) records * RECORD_COPY_COST);
+    return (ha_scan_time() + (double) records * RECORD_COPY_COST);
   }
 
   /*
@@ -3695,7 +3695,7 @@ public:
   */
   inline double ha_scan_and_compare_time(ha_rows records)
   {
-    return (ha_scan_time() + TABLE_SCAN_SETUP_COST * avg_io_cost() +
+    return (ha_scan_time() +
             (double) records * (RECORD_COPY_COST + 1/TIME_FOR_COMPARE));
   }
 
@@ -3725,7 +3725,7 @@ public:
      should call ha_read_time(), ha_read_and_copy_time() or
      ha_read_and_compare_time().
   */
-//protected:
+protected:
   virtual double read_time(uint index, uint ranges, ha_rows rows)
   {
     return ((rows2double(rows) * ROW_LOOKUP_COST +
@@ -3754,15 +3754,21 @@ public:
   }
 
   /* Cost of reading a row with rowid */
+protected:
   virtual double read_with_rowid(ha_rows rows)
   {
-    return (rows2double(rows) * avg_io_cost() * optimizer_cache_cost);
+    return rows2double(rows) * ROW_LOOKUP_COST * avg_io_cost();
   }
-
-  /* Same as above, but take into account copying of the row to 'record' */
+public:
+  /*
+    Same as above, but take into account cache_cost and copying of the row
+    to 'record'.
+    Note that this should normally be same as ha_read_time(some_key, 0, rows)
+  */
   inline double ha_read_with_rowid(ha_rows rows)
   {
-    return read_with_rowid(rows) + rows2double(rows) * RECORD_COPY_COST;
+    return (read_with_rowid(rows) * optimizer_cache_cost +
+            rows2double(rows) * RECORD_COPY_COST);
   }
 
   /**
@@ -3776,7 +3782,7 @@ public:
                     those key entries into the engine buffers.
      @param rows    #of records to read
   */
-//protected:
+protected:
   virtual double keyread_time(uint index, uint flag, ha_rows rows);
 public:
 
@@ -3796,11 +3802,21 @@ public:
     return ha_keyread_time(index, flag, rows) + (double) rows * INDEX_COPY_COST;
   }
 
+  /*
+    Time for a full table index scan (without copy or compare cost).
+    To be overrided by engines, sql level should use ha_key_scan_time().
+  */
+protected:
+  virtual double key_scan_time(uint index)
+  {
+    return keyread_time(index, 1, records());
+  }
+public:
+
   /* Cost of doing a full index scan */
   inline double ha_key_scan_time(uint index)
   {
-    return (ha_keyread_and_copy_time(index, 1, records()) +
-            INDEX_SCAN_SETUP_COST * avg_io_cost());
+    return (key_scan_time(index) * optimizer_cache_cost);
   }
 
   /*
@@ -3809,17 +3825,8 @@ public:
   */
   inline double ha_key_scan_and_compare_time(uint index, ha_rows rows)
   {
-    return (ha_keyread_time(index, 1, rows) +
+    return (ha_key_scan_time(index) +
             (double) rows * (INDEX_COPY_COST + 1/TIME_FOR_COMPARE));
-  }
-
-  /*
-    Time for a full table index scan (without copy or compare cost).
-    To be overrided by engines, sql level should use ha_key_scan_time().
-  */
-  virtual double key_scan_time(uint index)
-  {
-    return keyread_time(index, 1, records());
   }
 
   virtual const key_map *keys_to_use_for_scanning() { return &key_map_empty; }
@@ -5328,6 +5335,12 @@ protected:
   void set_ha_share_ptr(Handler_share *arg_ha_share);
   void lock_shared_ha_data();
   void unlock_shared_ha_data();
+
+  /*
+    Mroonga needs to call read_time() directly for it's internal handler
+    methods
+  */
+  friend class ha_mroonga;
 };
 
 #include "multi_range_read.h"

@@ -942,7 +942,7 @@ public:
   /* 
     Cost accessing the table in course of the entire complete join execution,
     i.e. cost of one access method use (e.g. 'range' or 'ref' scan ) times 
-    number the access method will be invoked.
+    number the access method will be invoked and checking the WHERE clause.
   */
   double read_time;
 
@@ -2398,11 +2398,19 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
 bool open_tmp_table(TABLE *table);
 double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
-double get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size);
-double get_tmp_table_write_cost(THD *thd, double row_count, uint row_size);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
                             bool skip_unprefixed_keyparts);
+
+struct TMPTABLE_COSTS
+{
+  double create;
+  double lookup;
+  double write;
+};
+
+TMPTABLE_COSTS get_tmp_table_costs(THD *thd, double row_count, uint row_size,
+                                   bool blobs_used);
 
 struct st_cond_statistic
 {

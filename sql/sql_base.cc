@@ -4449,12 +4449,6 @@ restart:
         tbl->reginfo.lock_type= tables->lock_type;
       tbl->reginfo.skip_locked= tables->skip_locked;
     }
-    /*
-      We update the optimizer_cache_cost to ensure that set statement of
-      the variable it will work.
-    */
-    tbl->file->set_optimizer_cache_cost((100 - thd->variables.
-                                         optimizer_cache_hit_ratio)/100.0);
 
 #ifdef WITH_WSREP
     /*

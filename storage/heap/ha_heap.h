@@ -68,6 +68,10 @@ public:
   { return (double) (rows +1)/ 20.0; }
   double keyread_time(uint index, uint ranges, ha_rows rows)
   { return (double) (rows + ranges) / 20.0 ; }
+  double read_with_rowid(ha_rows rows)
+  {
+    return (double) rows/ 20.0;
+  }
   double avg_io_cost()
   { return 0.05; }                              /* 1/20 */
 

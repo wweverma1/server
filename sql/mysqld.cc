@@ -8981,7 +8981,7 @@ void refresh_status(THD *thd)
   /* Add thread's status variabes to global status */
   add_to_status(&global_status_var, &thd->status_var);
 
-  /* Reset thread's status variables */
+  /* Reset thread's status vajoinriables */
   thd->set_status_var_init();
   thd->status_var.global_memory_used= 0;
   bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var)); 

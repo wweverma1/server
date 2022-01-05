@@ -412,7 +412,6 @@ static bool eq_tree(SEL_ARG* a,SEL_ARG *b);
 SEL_ARG null_element(SEL_ARG::IMPOSSIBLE);
 static bool null_part_in_key(KEY_PART *key_part, const uchar *key,
                              uint length);
-static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
 
 static
 SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
@@ -2320,6 +2319,7 @@ public:
   struct st_ror_scan_info *cpk_scan;  /* Clustered PK scan, if there is one */
   bool is_covering; /* TRUE if no row retrieval phase is necessary */
   double index_scan_costs; /* SUM(cost(index_scan)) */
+  double cmp_cost;         // Cost of out rows with WHERE clause
   void trace_basic_info(PARAM *param,
                         Json_writer_object *trace_object) const;
 };
@@ -2975,8 +2975,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         if ((rori_trp= get_best_ror_intersect(&param, tree, best_read_time,
                                               &can_build_covering)))
         {
-          best_trp= rori_trp;
-          best_read_time= best_trp->read_cost;
+          best_trp=       rori_trp;
+          best_read_time= rori_trp->read_cost;
           /*
             Try constructing covering ROR-intersect only if it looks possible
             and worth doing.
@@ -3000,8 +3000,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         if ((intersect_trp= get_best_index_intersect(&param, tree,
                                                     best_read_time)))
         {
-          best_trp= intersect_trp;
-          best_read_time= best_trp->read_cost; 
+          best_trp=       intersect_trp;
+          best_read_time= intersect_trp->read_cost;
           param.table->set_opt_range_condition_rows(intersect_trp->records);
         }
       }
@@ -3402,7 +3402,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
   if (!*cond || table->pos_in_table_list->schema_table)
   {
-    table->set_cond_selectivity(table->opt_range_condition_rows / table_records);
+    table->set_cond_selectivity(table->opt_range_condition_rows /
+                                table_records);
     DBUG_RETURN(FALSE);
   }
 
@@ -3552,7 +3553,6 @@ end_of_range_loop:
                          table_records);
   if (original_selectivity < table->cond_selectivity)
   {
-    Json_writer_object selectivity_for_index(thd);
     table->cond_selectivity= original_selectivity;
     if (unlikely(thd->trace_started()))
     {
@@ -5057,17 +5057,24 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num)
   Get cost of 'sweep' full records retrieval.
   SYNOPSIS
     get_sweep_read_cost()
-      param            Parameter from test_quick_select
-      records          # of records to be retrieved
+      param                 Parameter from test_quick_select
+      records               # of records to be retrieved
+      add_time_for_compare  If set, add cost of WHERE clause (TIME_FOR_COMPARE)
   RETURN
     cost of sweep
 */
 
-double get_sweep_read_cost(const PARAM *param, ha_rows records)
+static double get_sweep_read_cost(const PARAM *param, ha_rows records,
+                                  bool add_time_for_compare)
 {
+  DBUG_ENTER("get_sweep_read_cost");
+#ifndef OLD_SWEEP_COST
+  DBUG_RETURN(param->table->file->ha_read_with_rowid(records) +
+              (add_time_for_compare ? records / TIME_FOR_COMPARE : 0));
+#else
   double result;
   uint pk= param->table->s->primary_key;
-  DBUG_ENTER("get_sweep_read_cost");
+
   if (param->table->file->pk_is_clustering_key(pk) ||
       param->table->file->stats.block_size == 0 /* HEAP */)
   {
@@ -5075,12 +5082,12 @@ double get_sweep_read_cost(const PARAM *param, ha_rows records)
       We are using the primary key to find the rows.
       Calculate the cost for this.
     */
-    result= param->table->file->ha_read_and_copy_time(pk, (uint)records, records);
+    result= table->file->ha_read_with_rowid(records);
   }
   else
   {
     /*
-      Rows will be retreived with rnd_pos(). Caluclate the expected
+      Rows will be retreived with rnd_pos(). Calculate the expected
       cost for this.
     */
     double n_blocks=
@@ -5113,9 +5120,11 @@ double get_sweep_read_cost(const PARAM *param, ha_rows records)
       */
       result= busy_blocks;
     }
+    result+= rows2double(n_rows) * RECORD_COPY_COST;
   }
   DBUG_PRINT("return",("cost: %g", result));
   DBUG_RETURN(result);
+#endif /* OLD_SWEEP_COST */
 }
 
 
@@ -5268,7 +5277,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     imerge_cost += (*cur_child)->read_cost;
     all_scans_ror_able &= ((*ptree)->n_ror_scans > 0);
     all_scans_rors &= (*cur_child)->is_ror;
-    if (param->table->file->is_clustering_key(param->real_keynr[(*cur_child)->key_idx]))
+    if (param->table->file->is_clustering_key(keynr_in_table))
     {
       cpk_scan= cur_child;
       cpk_scan_records= (*cur_child)->records;
@@ -5332,7 +5341,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
 
   /* Calculate cost(rowid_to_row_scan) */
   {
-    double sweep_cost= get_sweep_read_cost(param, non_cpk_scan_records);
+    /* imerge_cost already includes TIME_FOR_COMPARE */
+    double sweep_cost= get_sweep_read_cost(param, non_cpk_scan_records, 0);
     imerge_cost+= sweep_cost;
     trace_best_disjunct.
       add("records", non_cpk_scan_records).
@@ -5448,21 +5458,20 @@ skip_to_ror_scan:
       cost= read_time;
 
     TABLE_READ_PLAN *prev_plan= *cur_child;
-    if (!(*cur_roru_plan= get_best_ror_intersect(param, *ptree, cost,
-                                                 &dummy)))
+    TRP_ROR_INTERSECT *ror_trp;
+    if (!(*cur_roru_plan= ror_trp= get_best_ror_intersect(param, *ptree, cost,
+                                                          &dummy)))
     {
-      if (prev_plan->is_ror)
-        *cur_roru_plan= prev_plan;
-      else
+      if (!prev_plan->is_ror)
         DBUG_RETURN(imerge_trp);
+      *cur_roru_plan= prev_plan;
       roru_index_costs += (*cur_roru_plan)->read_cost;
     }
     else
-      roru_index_costs +=
-        ((TRP_ROR_INTERSECT*)(*cur_roru_plan))->index_scan_costs;
+      roru_index_costs += ror_trp->index_scan_costs;
     roru_total_records += (*cur_roru_plan)->records;
-    roru_intersect_part *= (*cur_roru_plan)->records /
-                           param->table->stat_records();
+    roru_intersect_part *= ((*cur_roru_plan)->records /
+                            param->table->stat_records());
   }
   trace_analyze_ror.end();
   /*
@@ -5483,10 +5492,10 @@ skip_to_ror_scan:
   */
 
   double roru_total_cost;
-  roru_total_cost= roru_index_costs +
-                   rows2double(roru_total_records)*log((double)n_child_scans) /
-                   (TIME_FOR_COMPARE_ROWID * M_LN2) +
-                   get_sweep_read_cost(param, roru_total_records);
+  roru_total_cost= (roru_index_costs +
+                    rows2double(roru_total_records)*log((double)n_child_scans) /
+                    (TIME_FOR_COMPARE_ROWID * M_LN2) +
+                    get_sweep_read_cost(param, roru_total_records, 0));
 
   DBUG_PRINT("info", ("ROR-union: cost %g, %zu members",
                       roru_total_cost, n_child_scans));
@@ -5519,7 +5528,7 @@ skip_to_ror_scan:
   SYNOPSIS
     merge_same_index_scans()
       param           Context info for the operation
-      imerge   IN/OUT SEL_IMERGE from which imerge_trp has been extracted          
+      imerge   IN/OUT SEL_IMERGE from which imerge_trp has been extracted
       imerge_trp      The index merge plan where index scans for the same
                       indexes are to be merges
       read_time       The upper bound for the cost of the plan to be evaluated
@@ -5916,7 +5925,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
 
     idx_scan.add("cost", cost);
 
-    if (cost >= cutoff_cost)
+    if (cost + COST_EPS >= cutoff_cost)
     {
       if (unlikely(idx_scan.trace_started()))
         idx_scan.add("chosen", false).add("cause", "cost");
@@ -5974,7 +5983,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
     return TRUE;
     
   common->best_uses_cpk= FALSE;
-  common->best_cost= cutoff_cost + COST_EPS;
+  common->best_cost= cutoff_cost;
   common->best_length= 0;
 
   if (!(common->best_intersect=
@@ -6396,7 +6405,7 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
   if (cost >= cutoff_cost)
     return FALSE;
 
-  cost+= get_sweep_read_cost(common_info->param, records);
+  cost+= get_sweep_read_cost(common_info->param, records, 1);
 
   next->cost= cost;
   next->length= curr->length+1;
@@ -6497,7 +6506,6 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
   TRP_INDEX_INTERSECT *intersect_trp= NULL;
   TABLE *table= param->table;
   THD *thd= param->thd;
-  
   DBUG_ENTER("get_best_index_intersect");
 
   Json_writer_object trace_idx_interect(thd, "analyzing_sort_intersect");
@@ -6565,7 +6573,7 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
   {
 
     intersect_trp->read_cost= common.best_cost;
-    intersect_trp->records= common.best_records;
+    intersect_trp->records=   common.best_records;
     intersect_trp->range_scans= range_scans;
     intersect_trp->range_scans_end= cur_range;
     intersect_trp->filtered_scans= common.filtered_scans;
@@ -6674,7 +6682,8 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
     ror queue.
   */
   ror_scan->index_read_cost=
-    param->table->file->ha_keyread_and_copy_time(ror_scan->keynr, 1, ror_scan->records);
+    param->table->file->ha_keyread_and_copy_time(ror_scan->keynr, 1,
+                                                 ror_scan->records);
   DBUG_RETURN(ror_scan);
 }
 
@@ -7060,13 +7069,15 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
   if (!info->is_covering)
   {
     double sweep_cost= get_sweep_read_cost(info->param,
-                                          double2rows(info->out_rows));
+                                           double2rows(info->out_rows), 1);
     info->total_cost+= sweep_cost;
     trace_costs->add("disk_sweep_cost", sweep_cost);
     DBUG_PRINT("info", ("info->total_cost= %g", info->total_cost));
   }
   else
+  {
     trace_costs->add("disk_sweep_cost", static_cast<longlong>(0));
+  }
 
   DBUG_PRINT("info", ("New out_rows: %g", info->out_rows));
   DBUG_PRINT("info", ("New cost: %g, %scovering", info->total_cost,
@@ -7145,9 +7156,8 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
                                           bool *are_all_covering)
 {
   uint idx;
-  double min_cost= DBL_MAX;
+  double min_cost= DBL_MAX, cmp_cost;
   THD *thd= param->thd;
-  ha_rows best_rows;
   DBUG_ENTER("get_best_ror_intersect");
   DBUG_PRINT("enter", ("opt_range_condition_rows: %llu  cond_selectivity: %g",
                        (ulonglong) param->table->opt_range_condition_rows,
@@ -7344,16 +7354,16 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     Adjust row count and add the cost of comparing the final rows to the
     WHERE clause
   */
-  best_rows= double2rows(intersect_best->out_rows);
-  set_if_bigger(best_rows, 1);
-  min_cost+= best_rows/TIME_FOR_COMPARE;
+  cmp_cost= intersect_best->out_rows/TIME_FOR_COMPARE;
 
   /* Ok, return ROR-intersect plan if we have found one */
   TRP_ROR_INTERSECT *trp= NULL;
-  if (min_cost < read_time && (cpk_scan || best_num > 1))
+  if (min_cost + cmp_cost < read_time && (cpk_scan || best_num > 1))
   {
+    double best_rows= double2rows(intersect_best->out_rows);
+    set_if_bigger(best_rows, 1);
     if (!(trp= new (param->mem_root) TRP_ROR_INTERSECT))
-      DBUG_RETURN(trp);
+      DBUG_RETURN(NULL);
     if (!(trp->first_scan=
            (ROR_SCAN_INFO**)alloc_root(param->mem_root,
                                        sizeof(ROR_SCAN_INFO*)*best_num)))
@@ -7361,7 +7371,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     memcpy(trp->first_scan, intersect_scans, best_num*sizeof(ROR_SCAN_INFO*));
     trp->last_scan=  trp->first_scan + best_num;
     trp->is_covering= intersect_best->is_covering;
-    trp->read_cost= min_cost;
+    trp->read_cost= min_cost + cmp_cost;
     param->table->set_opt_range_condition_rows(best_rows);
     trp->records= best_rows;
     trp->index_scan_costs= intersect_best->index_scan_costs;
@@ -7380,9 +7390,8 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
   {
     trace_ror.
       add("chosen", false).
-      add("cause", (read_time >= min_cost)
-          ? "too few indexes to merge"
-          : "cost");
+      add("cause", (min_cost + cmp_cost >= read_time) ?
+          "cost" : "too few indexes to merge");
   }
   DBUG_PRINT("exit", ("opt_range_condition_rows: %llu",
                       (ulonglong) param->table->opt_range_condition_rows));
@@ -7457,7 +7466,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
     DBUG_RETURN(0);
   bitmap_clear_all(covered_fields);
 
-  double total_cost= 0.0f;
+  double total_cost= 0.0;
   ha_rows records=0;
   bool all_covered;
 
@@ -7518,6 +7527,8 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                 log((double)(ror_scan_mark - tree->ror_scans)) /
                 (TIME_FOR_COMPARE_ROWID * M_LN2);
   DBUG_PRINT("info", ("Covering ROR-intersect full cost: %g", total_cost));
+
+  /* TODO: Add TIME_FOR_COMPARE cost to total_cost */
 
   if (total_cost > read_time)
     DBUG_RETURN(NULL);
@@ -7656,7 +7667,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
             add("using_mrr", !(mrr_flags & HA_MRR_USE_DEFAULT_IMPL)).
             add("index_only", read_index_only).
             add("rows", found_records).
-            add("cost", cost.total_cost());
+            add("cost", found_read_time);
       }
       if (is_ror_scan)
       {
@@ -11770,10 +11781,11 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
                             rows) :
                            1.0);                // ok as rows is 0
       range->rows= rows;
-      /* cost of finding a row and copying a row, without checking the where */
+      /* cost of finding a row without copy or checking the where */
       range->find_cost= cost->find_cost();
+      /* cost of finding a row copying it to the row buffer */
       range->fetch_cost= range->find_cost + cost->data_copy_cost();
-      /* Same as total cost */
+      /* Add comparing it to the where. Same as cost.total_cost() */
       range->cost= (range->fetch_cost + cost->compare_cost());
       /* Calculate the cost of just finding the key. Used by filtering */
       if (param->table->file->is_clustering_key(keynr))

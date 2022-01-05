@@ -9,7 +9,7 @@ use dbt3_s001;
 explain
 select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	ref|filter	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey|i_l_shipdate	4|8	const	5 (0%)	Using where; Using rowid filter
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	8	const,const	1	Using index
 flush status;
 select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
 count(*)
@@ -17,9 +17,9 @@ count(*)
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	1
 Handler_read_last	0
-Handler_read_next	2
+Handler_read_next	1
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
@@ -638,7 +638,7 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain select a from t1 where b is null order by a desc limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	b	PRIMARY	8	NULL	2	Using where
+1	SIMPLE	t1	range	b	b	9	NULL	3	Using where; Using filesort
 select a from t1 where b is null order by a desc limit 2;
 a
 3

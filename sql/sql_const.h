@@ -224,29 +224,38 @@
 */
 #define CACHE_HIT_RATIO 50
 
+/*
+  Cost of finding and copying keys of a total length of 'blocksize'
+  used in handler::keyread_time()
+ */
 #define INDEX_BLOCK_COPY_COST  ((double) 1 / 5.0)
-/* Time for finding the first key in a key scan */
+/* Cost for finding the first key in a key scan */
 #define INDEX_LOOKUP_COST      ((double) 1.0)
+/* Cost of finding a key from a row_ID (not used for clustered keys) */
 #define ROW_LOOKUP_COST      ((double) 1.0)
 /*
-  Cost of finding the next row during table scan and copying it to 'table->record'.
+  Cost of finding the next row during table scan and copying it to
+  'table->record'.
   If this is too small, then table scans will be prefered over 'ref'
-  as with table scans there are no key read (INDEX_LOOKUP_COST), fewer disk
-  reads but more record copying and row comparisions.
-  If it's too big then MariaDB will used key lookup even when table scan is better.
+  as with table scans there are no key read (INDEX_LOOKUP_COST), fewer
+  disk reads but more record copying and row comparisions.  If it's
+  too big then MariaDB will used key lookup even when table scan is
+  better.
 */
 #define RECORD_COPY_COST     ((double) 1.0 / 20.0)
 /*
-  Cost of finding the next key during index scan and copying it to 'table->record'
+  Cost of finding the next key during index scan and copying it to
+  'table->record'
 
   If this is too small, then index scans will be prefered over 'ref'
-  as with table scans there are no key read (INDEX_LOOKUP_COST) and fewer disk
-  reads.
+  as with table scans there are no key read (INDEX_LOOKUP_COST) and
+  fewer disk reads.
 */
 #define INDEX_COPY_COST     ((double) 1.0 / 40.0)
 /*
   Cost of finding the next index entry and checking it against filter
   This cost is very low as it's done inside the storage engine.
+  Should be smaller than INDEX_COPY_COST.
  */
 #define INDEX_NEXT_FIND_COST ((double) 1.0 / 80.0)
 
@@ -259,7 +268,7 @@
 */
 /* Extra cost for full table scan. Used to prefer range over table scans */
 #define TABLE_SCAN_SETUP_COST 1.0
-/* Extra cost for full index scan. Used to prefer range instead of index scans */
+/* Extra cost for full index scan. Used to prefer range over index scans */
 #define INDEX_SCAN_SETUP_COST 1.0
 
 /*
@@ -307,10 +316,12 @@
 /*
   Subquery materialization-related constants
 */
+/* This should match ha_heap::read_time() */
 #define HEAP_TEMPTABLE_LOOKUP_COST 0.05
+#define HEAP_TEMPTABLE_CREATE_COST 1.0
 #define DISK_TEMPTABLE_LOOKUP_COST 1.0
+#define DISK_TEMPTABLE_CREATE_COST 4.0 /* Creating and deleting 2 temp tables */
 #define SORT_INDEX_CMP_COST 0.02
-
 
 #define COST_MAX (DBL_MAX * (1.0 - DBL_EPSILON))
 
