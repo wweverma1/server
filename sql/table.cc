@@ -2841,23 +2841,31 @@ bool Virtual_column_info::fix_expr(THD *thd)
     @note this is done for all vcols for INSERT/UPDATE/DELETE,
     and only as needed for SELECTs.
 */
-bool Virtual_column_info::fix_session_expr(THD *thd)
+bool Virtual_column_info::fix_session_expr(THD *thd, TABLE *table)
 {
-  // TODO: remove either this check or vcols_need_refixing
-  if (!(flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC)))
+  if (!need_refix())
     return false;
 
-  if (expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0))
-    return true;
   DBUG_ASSERT(!expr->fixed);
   if (expr->walk(&Item::change_context_processor, 0, thd->lex->current_context()))
     return true;
+  table->vcol_cleanup_list.push_back(this, thd->mem_root);
   if (fix_expr(thd))
     return true;
   if (expr->walk(&Item::change_context_processor, 0, NULL))
     return true;
   return false;
 }
+
+
+bool Virtual_column_info::cleanup_session_expr()
+{
+  DBUG_ASSERT(need_refix());
+  if (expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0))
+    return true;
+  return false;
+}
+
 
 
 class Vcol_expr_context
@@ -2871,11 +2879,7 @@ class Vcol_expr_context
   bool old_want_privilege;
   Security_context *save_security_ctx;
   sql_mode_t save_sql_mode;
-  Query_arena backup_arena;
-  Query_arena *stmt_backup;
-  Query_arena *expr_arena;
   Silence_warnings disable_warnings;
-  bool warnings_disabled;
 
 public:
   Vcol_expr_context(THD *_thd, TABLE *_table) :
@@ -2886,9 +2890,7 @@ public:
     old_map(table->map),
     old_want_privilege(table->grant.want_privilege),
     save_security_ctx(thd->security_ctx),
-    save_sql_mode(thd->variables.sql_mode),
-    stmt_backup(thd->stmt_arena),
-    expr_arena(table->expr_arena) {}
+    save_sql_mode(thd->variables.sql_mode) {}
   bool init();
 
   ~Vcol_expr_context();
@@ -2910,19 +2912,18 @@ bool Vcol_expr_context::init()
 
   thd->push_internal_handler(&disable_warnings);
   table->grant.want_privilege= false;
-  TABLE_LIST const *tl= table->pos_in_table_list;
-
-  /* Avoid fix_outer_field() in Item_field::fix_fields(). */
-  lex.current_context()->select_lex= tl->select_lex;
   lex.sql_command= old_lex->sql_command;
-
-  thd->set_n_backup_active_arena(expr_arena, &backup_arena);
-  thd->stmt_arena= expr_arena;
-
-  if (tl->security_ctx)
-    thd->security_ctx= tl->security_ctx;
-
   thd->variables.sql_mode= 0;
+
+  /*
+     NOTE: we refix also tmp tables used in ALTER TABLE,
+     they have (pos_in_table_list == NULL).
+  */
+  TABLE_LIST const *tl= table->pos_in_table_list;
+  DBUG_ASSERT(tl || table->s->tmp_table);
+
+  if (tl && tl->security_ctx)
+    thd->security_ctx= tl->security_ctx;
 
   inited= true;
   return false;
@@ -2933,8 +2934,6 @@ Vcol_expr_context::~Vcol_expr_context()
   if (!inited)
     return;
   table->grant.want_privilege= old_want_privilege;
-  thd->restore_active_arena(expr_arena, &backup_arena);
-  thd->stmt_arena= stmt_backup;
   thd->pop_internal_handler();
   end_lex_with_single_table(thd, table, old_lex);
   table->map= old_map;
@@ -2943,53 +2942,59 @@ Vcol_expr_context::~Vcol_expr_context()
 }
 
 
-/** invoke fix_session_vcol_expr for a vcol
-
-    @note this is called for generated column or a DEFAULT expression from
-    their corresponding fix_fields on SELECT.
-*/
-bool Virtual_column_info::fix_session_expr_for_read(THD *thd, Field *field)
+bool TABLE::vcol_fix_expr(THD *thd)
 {
-  const TABLE_LIST *tl= field->table->pos_in_table_list;
-  if (!tl || tl->lock_type >= TL_WRITE_ALLOW_WRITE)
+  DBUG_ASSERT(pos_in_table_list || s->tmp_table);
+  if ((pos_in_table_list && pos_in_table_list->placeholder()) ||
+      !s->vcol_need_refix)
     return false;
 
-  Vcol_expr_context expr_ctx(thd, field->table);
-  if (expr_ctx.init())
-    return true;
-
-  const bool res= fix_session_expr(thd);
-  return res;
-}
-
-
-bool TABLE::vcol_fix_exprs(THD *thd)
-{
-  if (pos_in_table_list->placeholder() || !s->vcols_need_refixing)
+  if (!thd->stmt_arena->is_conventional() &&
+      !vcol_cleanup_list.is_empty())
+  {
+    /* NOTE: Under trigger we already have fixed expressions */
     return false;
+  }
+  DBUG_ASSERT(vcol_cleanup_list.is_empty());
 
   Vcol_expr_context expr_ctx(thd, this);
   if (expr_ctx.init())
     return true;
 
-  bool result= true;
-
   for (Field **vf= vfield; vf && *vf; vf++)
-    if ((*vf)->vcol_info->fix_session_expr(thd))
-      goto end;
+    if ((*vf)->vcol_info->fix_session_expr(thd, this))
+      goto error;
 
   for (Field **df= default_field; df && *df; df++)
     if ((*df)->default_value &&
-        (*df)->default_value->fix_session_expr(thd))
-      goto end;
+        (*df)->default_value->fix_session_expr(thd, this))
+      goto error;
 
   for (Virtual_column_info **cc= check_constraints; cc && *cc; cc++)
-    if ((*cc)->fix_session_expr(thd))
-      goto end;
+    if ((*cc)->fix_session_expr(thd, this))
+      goto error;
 
-  result= false;
+  return false;
 
-end:
+error:
+  DBUG_ASSERT(thd->get_stmt_da()->is_error());
+  return true;
+}
+
+
+bool TABLE::vcol_cleanup_expr(THD *thd)
+{
+  if (vcol_cleanup_list.is_empty())
+    return false;
+
+  List_iterator<Virtual_column_info> it(vcol_cleanup_list);
+  bool result= false;
+
+  while (Virtual_column_info *vcol= it++)
+    result|= vcol->cleanup_session_expr();
+
+  vcol_cleanup_list.empty();
+
   DBUG_ASSERT(!result || thd->get_stmt_da()->is_error());
   return result;
 }
@@ -3022,6 +3027,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
   DBUG_PRINT("info", ("vcol: %p", this));
   DBUG_ASSERT(expr);
 
+  /* NOTE: constants are fixed when constructed */
   if (expr->fixed)
     DBUG_RETURN(0); // nothing to do
 
@@ -3072,8 +3078,11 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
   }
   flags= res.errors;
 
-  if (flags & VCOL_SESSION_FUNC)
-    table->s->vcols_need_refixing= true;
+  if (need_refix())
+  {
+    table->s->vcol_need_refix= true;
+    cleanup_session_expr();
+  }
 
   DBUG_RETURN(0);
 }
@@ -3232,6 +3241,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->covering_keys.init();
   outparam->intersect_keys.init();
   outparam->keys_in_use_for_query.init();
+  outparam->vcol_cleanup_list.empty();
 
   /* Allocate handler */
   outparam->file= 0;
@@ -7849,14 +7859,13 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   Field **vfield_ptr, *vf;
   Query_arena backup_arena;
   Turn_errors_to_warnings_handler Suppress_errors;
-  int error;
   bool handler_pushed= 0, update_all_columns= 1;
   DBUG_ASSERT(vfield);
 
   if (h->keyread_enabled())
     DBUG_RETURN(0);
 
-  error= 0;
+  /* TODO: this imposes memory leak until table flush */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
 
   /* When reading or deleting row, ignore errors from virtual columns */
@@ -7930,7 +7939,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       int field_error __attribute__((unused)) = 0;
       /* Compute the actual value of the virtual fields */
       if (vcol_info->expr->save_in_field(vf, 0))
-        field_error= error= 1;
+        field_error= 1;
       DBUG_PRINT("info", ("field '%s' - updated  error: %d",
                           vf->field_name, field_error));
       if (swap_values && (vf->flags & BLOB_FLAG))
@@ -7963,6 +7972,7 @@ int TABLE::update_virtual_field(Field *vf)
   Query_arena backup_arena;
   Counting_error_handler count_errors;
   in_use->push_internal_handler(&count_errors);
+  /* TODO: this imposes memory leak until table flush */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
@@ -8001,6 +8011,7 @@ int TABLE::update_default_fields(bool ignore_errors)
   DBUG_ENTER("TABLE::update_default_fields");
   DBUG_ASSERT(default_field);
 
+  /* TODO: this imposes memory leak until table flush */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
 
   /* Iterate over fields with default functions in the table */

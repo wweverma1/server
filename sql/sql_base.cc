@@ -746,6 +746,8 @@ void close_thread_tables(THD *thd)
     /* Table might be in use by some outer statement. */
     DBUG_PRINT("tcache", ("table: '%s'  query_id: %lu",
                           table->s->table_name.str, (ulong) table->query_id));
+    if (thd->locked_tables_mode)
+      table->vcol_cleanup_expr(thd);
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES ||
         table->query_id == thd->query_id)
     {
@@ -881,6 +883,8 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
                                              table->s->db.str,
                                              table->s->table_name.str,
                                              MDL_SHARED));
+
+  table->vcol_cleanup_expr(thd);
   table->mdl_ticket= NULL;
 
   if (table->file)
@@ -1573,7 +1577,6 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
   uint gts_flags;
-  bool from_share= false;
   DBUG_ENTER("open_table");
 
   /*
@@ -1963,7 +1966,6 @@ retry_share:
 
     /* Add table to the share's used tables list. */
     tc_add_table(thd, table);
-    from_share= true;
   }
 
   table->mdl_ticket= mdl_ticket;
@@ -1983,7 +1985,7 @@ retry_share:
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
   table_list->table= table;
 
-  if (!from_share && table->vcol_fix_exprs(thd))
+  if (table->vcol_fix_expr(thd))
     goto err_lock;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
