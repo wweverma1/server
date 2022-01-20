@@ -1239,10 +1239,9 @@ int ha_spider::external_lock(
       }
       DBUG_RETURN(0);
     }
-    if (unlikely((error_num = spider_internal_start_trx(this))))
-    {
-      DBUG_RETURN(error_num);
-    }
+    if (wide_handler->sql_command != SQLCOM_UNLOCK_TABLES)
+      if (unlikely((error_num = spider_internal_start_trx(this))))
+        DBUG_RETURN(error_num);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else {
     trans_register_ha(trx->thd, FALSE, spider_hton_ptr);
