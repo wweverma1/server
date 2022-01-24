@@ -2325,10 +2325,11 @@ int Gis_multi_point::spherical_distance_multipoints(Geometry *g, const double r,
   {
     Geometry_buffer buff_temp;
     Geometry *temp;
+
     double temp_res= 0.0;
     char s[len];
     // First 4 bytes are handled already, make sure to create a Point
-    memset(s + 4, Geometry::wkb_point, 1);
+    memset(s + 4, Geometry::wkb_ndr, 1);
     memcpy(s + 5, this->get_data_ptr() + 5, 4);
     memcpy(s + 4 + WKB_HEADER_SIZE, this->get_data_ptr() + 4 + WKB_HEADER_SIZE*i +\
                                     POINT_DATA_SIZE*(i-1), POINT_DATA_SIZE);

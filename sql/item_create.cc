@@ -4785,7 +4785,7 @@ Create_func_distance_sphere::create_native(THD *thd, LEX_STRING name,
   if (item_list != NULL)
     arg_count= item_list->elements;
 
-  if (arg_count < 2)
+  if (arg_count < 2 || arg_count > 3)
   {
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
     return NULL;

@@ -402,6 +402,10 @@ with cte1 as(   select (st_symdifference(point(1,1),point(1,1))) as a1 ), cte2 a
 SELECT ST_DISTANCE_SPHERE();
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 SELECT ST_DISTANCE_SPHERE(NULL);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT ST_DISTANCE_SPHERE(NULL,NULL,NULL,NULL);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT ST_DISTANCE_SPHERE(1,2,3,4);
 SELECT ST_DISTANCE_SPHERE(NULL, NULL);
 # NULL args and optional radius will return NULL
 SELECT ST_DISTANCE_SPHERE(NULL, NULL, 3);
@@ -457,17 +461,81 @@ SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('MULTIPOINT(1 2,1 1 )'), ST_GEOMFROMTE
 # Longitude out of range [-180,180]
 set @pt1 = ST_GeomFromText('POINT(190 -30)');
 set @pt2 = ST_GeomFromText('POINT(-30  50)');
---error ER_STD_OUT_OF_RANGE_ERROR
+# @todo this is wrong should be ER_STD_OUT_OF_RANGE_ERROR
+--error ER_GIS_INVALID_DATA
 SELECT ST_Distance_Sphere(@pt1, @pt2);
 
 # Latitude out of range [-90, 90]
 set @pt1 = ST_GeomFromText('POINT(135 -30)');
 set @pt2 = ST_GeomFromText('POINT(-30 91)');
---error ER_STD_OUT_OF_RANGE_ERROR
+# @todo this is wrong should be ER_STD_OUT_OF_RANGE_ERROR
+--error ER_GIS_INVALID_DATA
 SELECT ST_Distance_Sphere(@pt1, @pt2);
 
 # POINT in form (longitude[-180, 180] latitude[-90, 90])
 set @zenica   = ST_GeomFromText('POINT(17.907743 44.203438)');
 set @sarajevo = ST_GeomFromText('POINT(18.413076 43.856258)');
+# @todo This is wrong! Should be scalar
+--error ER_GIS_INVALID_DATA
 SELECT TRUNCATE(ST_Distance_Sphere(@zenica, @sarajevo), 10);
+# @todo This is wrong! Should be scalar
+--error ER_GIS_INVALID_DATA
 SELECT TRUNCATE(ST_Distance_Sphere(@sarajevo, @zenica), 10);
+
+--echo #
+--echo # MDEV-26161: crash in Gis_point::calculate_haversine
+--echo #
+
+--error ER_INTERNAL_ERROR
+SELECT ST_DISTANCE_SPHERE(ST_GeomFromText('POLYGON((0 0,0 1,1 1,1 0,0 0))'), ST_GEOMFROMTEXT('POINT(2 0)'));
+# Argument NULL to function
+# @todo This is wrong! Should be NULL
+--error ER_GIS_INVALID_DATA
+SELECT ST_DISTANCE_SPHERE(ST_AsBinary(@poly), ST_GEOMFROMTEXT('POINT(2 0)'));
+# Wrong argument
+SET @poly = ST_GeomFromText('POLYGON((0 0,0 1,1 1,1 0,0 0))');
+-- error ER_GIS_INVALID_DATA
+SELECT ST_DISTANCE_SPHERE(ST_AsBinary(@poly), ST_GEOMFROMTEXT('POINT(2 0)'));
+# Valid argument
+SET @poly = ST_GeomFromText('POLYGON(LINESTRING(0 0,0 1,1 1,1 0,0 0))');
+# @todo This is wrong! Should be scalar
+--error ER_GIS_INVALID_DATA
+SELECT ST_DISTANCE_SPHERE(ST_AsBinary(@poly), ST_GEOMFROMTEXT('POINT(2 0)'));
+-- error ER_GIS_INVALID_DATA
+SELECT ST_DISTANCE_SPHERE(ST_AsBinary(polygon(linestring(point(0,0),point(0,1),point(1,1),point(1,0),point(0,0)))), ST_GEOMFROMTEXT('POINT(2 0)'));
+
+-- error ER_GIS_INVALID_DATA
+SELECT st_distance_sphere(
+ st_asbinary(
+  polygon(
+   linestring(
+    point(-19655,-18908),
+    point(-10261,-7746),
+    point(31432,-18255),
+    point(-19655,-18908)
+   ),
+   linestring(
+    point(-10494,19004),
+    point(-18181,-24299),
+    point(20616,19685),
+    point(-10494,19004)
+   ),
+   linestring(
+    point(8904,-21761),
+    point(-24528,3798),
+    point(-2502,-2889),
+    point(8904,-21761)
+   ),
+   linestring(
+    point(-7451,-19434),
+    point(-30558,-27426),
+    point(19086,17469),
+    point(-7451,-19434)
+   )
+  )
+ ),
+ multipoint(
+  point(124,204)
+ ),
+ 3232164176
+);

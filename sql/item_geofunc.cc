@@ -2567,6 +2567,7 @@ double Item_func_sphere_distance::val_real()
       return 1;
     }
   }
+
   Geometry_buffer buffer1, buffer2;
   Geometry *g1, *g2;
   if (!(g1= Geometry::construct(&buffer1, arg1->ptr(), arg1->length())) ||
@@ -2575,16 +2576,15 @@ double Item_func_sphere_distance::val_real()
     my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_Distance_Sphere");
     goto handle_errors;
   }
-// Method allowed for points and multipoints
-  if (!(g1->get_class_info()->m_type_id == Geometry::wkb_point ||
-        g1->get_class_info()->m_type_id == Geometry::wkb_multipoint) ||
-      !(g2->get_class_info()->m_type_id == Geometry::wkb_point ||
-        g2->get_class_info()->m_type_id == Geometry::wkb_multipoint))
+
+  if (check_geometries(g1->get_class_info()->m_type_id,
+                       g2->get_class_info()->m_type_id))
   {
-    // Generate error message in case different geometry is used? 
+    // Generate error message in case different geometry is used?
     my_error(ER_INTERNAL_ERROR, MYF(0), func_name());
     return 0;
   }
+
   distance= spherical_distance_points(g1, g2, sphere_radius);
   if (distance < 0)
   {
@@ -2674,6 +2674,18 @@ double Item_func_sphere_distance::spherical_distance_points(Geometry *g1,
       my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
                "Latitude should be [-90,90]", "ST_Distance_Sphere");
   return res;
+}
+
+
+int Item_func_sphere_distance::check_geometries(const int g1, const int g2)
+{
+  // Method allowed for points and multipoints
+  if (!(g1== Geometry::wkb_point || g1 == Geometry::wkb_multipoint) ||
+      !(g2== Geometry::wkb_point || g2 == Geometry::wkb_multipoint))
+  {
+    return 1;
+  }
+  return 0;
 }
 
 

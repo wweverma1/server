@@ -718,10 +718,32 @@ class Item_func_sphere_distance: public Item_real_func
 {
   double spherical_distance_points(Geometry *g1, Geometry *g2,
                                    const double sphere_r);
+  int check_geometries(const int g1, const int g2);
 public:
   Item_func_sphere_distance(THD *thd, List<Item> &list):
     Item_real_func(thd, list) {}
   double val_real();
+  bool fix_length_and_dec()
+  {
+    if (Item_real_func::fix_length_and_dec())
+      return TRUE;
+    for (unsigned int i= 0; i < arg_count; i++)
+    {
+      /* Handling of NULLs will be handled after */
+      if(args[i]->null_value)
+        return FALSE;
+    }
+    /* Ignore radius */
+    for (unsigned int i= 0; i < 2; i++)
+    {
+      if (args[i]->field_type() != FIELD_TYPE_GEOMETRY)
+      {
+        my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_Distance_Sphere");
+        return TRUE;
+      }
+    }
+    return FALSE;
+  }
   const char *func_name() const { return "st_distance_sphere"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_sphere_distance>(thd, mem_root, this); }
