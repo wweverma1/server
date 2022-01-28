@@ -126,7 +126,6 @@ enum enum_ddl_log_drop_db_phase {
 
 enum enum_ddl_log_create_table_phase {
   DDL_CREATE_TABLE_PHASE_INIT=0,
-  DDL_CREATE_TABLE_PHASE_LOG,
   DDL_CREATE_TABLE_PHASE_END
 };
 
@@ -173,6 +172,7 @@ enum enum_ddl_log_alter_table_phase {
   engine is not changed
 */
 #define DDL_LOG_FLAG_ALTER_PARTITION      (1 << 4)
+#define DDL_LOG_FLAG_TMP_TABLE            (1 << 5)
 
 /*
   Setting ddl_log_entry.phase to this has the same effect as setting
@@ -248,6 +248,7 @@ typedef struct st_ddl_log_state
   */
   DDL_LOG_MEMORY_ENTRY *main_entry;
   uint16 flags;                                 /* Cache for flags */
+  uint master_chain_pos;
   bool is_active() { return list != 0; }
 } DDL_LOG_STATE;
 
@@ -273,7 +274,8 @@ bool ddl_log_write_execute_entry(uint first_entry,
 bool ddl_log_disable_execute_entry(DDL_LOG_MEMORY_ENTRY **active_entry);
 
 void ddl_log_complete(DDL_LOG_STATE *ddl_log_state);
-bool ddl_log_revert(THD *thd, DDL_LOG_STATE *ddl_log_state);
+bool ddl_log_revert(THD *thd, DDL_LOG_STATE *ddl_log_state,
+                    bool report_error= false);
 
 bool ddl_log_update_phase(DDL_LOG_STATE *entry, uchar phase);
 bool ddl_log_add_flag(DDL_LOG_STATE *entry, uint16 flag);
@@ -356,5 +358,6 @@ bool ddl_log_alter_table(THD *thd, DDL_LOG_STATE *ddl_state,
 bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_log_state,
                          const char *query, size_t length);
 bool ddl_log_delete_frm(DDL_LOG_STATE *ddl_state, const char *to_path);
+void ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */

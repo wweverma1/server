@@ -21,6 +21,13 @@ connection slave;
 SHOW TABLES;
 Tables_in_test
 t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 connection master;
 drop temporary table if exists tmp;
 drop table t1;

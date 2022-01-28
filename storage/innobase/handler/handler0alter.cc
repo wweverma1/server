@@ -3057,7 +3057,7 @@ innobase_get_foreign_key_info(
 			LEX_STRING_WITH_LEN(fk_key->ref_db),
 			LEX_STRING_WITH_LEN(fk_key->ref_table),
 			&referenced_table,
-			add_fk[num_fk]->heap, cs);
+			add_fk[num_fk]->heap, cs, false);
 
 		/* Test the case when referenced_table failed to
 		open, if trx->check_foreigns is not set, we should

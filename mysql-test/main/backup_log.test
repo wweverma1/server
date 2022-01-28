@@ -24,6 +24,8 @@ create table mysqltest.t91 (a int primary key, b int) engine=innodb;
 alter database mysqltest character set utf8;
 drop database mysqltest;
 
+--source backup_log_print.inc
+
 --echo #
 --echo # MENT-222 bug testing
 --echo #

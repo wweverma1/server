@@ -2107,7 +2107,8 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         !create_info_arg->or_replace_slave_generated()) ||
        create_info_arg->table_was_deleted))
     packet->append(STRING_WITH_LEN("OR REPLACE "));
-  if (share->tmp_table)
+  if (share->tmp_table &&
+      !(create_info_arg && create_info_arg->is_atomic_replace()))
     packet->append(STRING_WITH_LEN("TEMPORARY "));
   packet->append(STRING_WITH_LEN("TABLE "));
   if (create_info_arg && create_info_arg->if_not_exists())

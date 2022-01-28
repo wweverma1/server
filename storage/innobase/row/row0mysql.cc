@@ -2736,7 +2736,6 @@ row_rename_table_for_mysql(
 
 	if (err != DB_SUCCESS) {
 		// Assume the caller guarantees destination name doesn't exist.
-		ut_ad(err != DB_DUPLICATE_KEY);
 		goto rollback_and_exit;
 	}
 

@@ -5953,7 +5953,7 @@ bool THD::binlog_write_annotated_row(Log_event_writer *writer)
    THD::binlog_prepare_for_row_logging
 */
 
-bool THD::binlog_write_table_maps()
+bool THD::binlog_write_table_maps(TABLE *cur_table)
 {
   bool with_annotate;
   MYSQL_LOCK *locks[2], **locks_end= locks;
@@ -6005,6 +6005,11 @@ bool THD::binlog_write_table_maps()
         table->file->row_logging= table->file->row_logging_init= 0;
       }
     }
+  }
+  if (cur_table->s->tmp_table && cur_table->file->row_logging)
+  {
+    if (binlog_write_table_map(cur_table, with_annotate))
+      DBUG_RETURN(1);
   }
   binlog_table_maps= 1;                         // Table maps written
   DBUG_RETURN(0);

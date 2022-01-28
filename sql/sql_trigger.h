@@ -258,9 +258,10 @@ public:
   bool save_trigger_file(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name);
 
   static bool check_n_load(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
-                           TABLE *table, bool names_only);
+                           TABLE *table, bool names_only, uint flags= 0);
   static bool drop_all_triggers(THD *thd, const LEX_CSTRING *db,
-                                const LEX_CSTRING *table_name, myf MyFlags);
+                                const LEX_CSTRING *table_name, myf MyFlags,
+                                uint flags= 0);
   static bool prepare_for_rename(THD *thd, TRIGGER_RENAME_PARAM *param,
                                  const LEX_CSTRING *db,
                                  const LEX_CSTRING *old_alias,

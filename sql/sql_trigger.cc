@@ -1174,9 +1174,11 @@ bool Trigger::add_to_file_list(void* param_arg)
 */
 
 static bool rm_trigger_file(char *path, const LEX_CSTRING *db,
-                            const LEX_CSTRING *table_name, myf MyFlags)
+                            const LEX_CSTRING *table_name, myf MyFlags,
+                            uint flags= 0)
 {
-  build_table_filename(path, FN_REFLEN-1, db->str, table_name->str, TRG_EXT, 0);
+  build_table_filename(path, FN_REFLEN - 1, db->str, table_name->str, TRG_EXT,
+                       flags);
   return mysql_file_delete(key_file_trg, path, MyFlags);
 }
 
@@ -1502,7 +1504,8 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
 bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
                                        const LEX_CSTRING *table_name,
                                        TABLE *table,
-                                       bool names_only)
+                                       bool names_only,
+                                       uint flags)
 {
   char path_buff[FN_REFLEN];
   LEX_CSTRING path;
@@ -1511,7 +1514,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
   DBUG_ENTER("Table_triggers_list::check_n_load");
 
   path.length= build_table_filename(path_buff, FN_REFLEN - 1,
-                                    db->str, table_name->str, TRG_EXT, 0);
+                                    db->str, table_name->str, TRG_EXT, flags);
   path.str= path_buff;
 
   // QQ: should we analyze errno somehow ?
@@ -2001,7 +2004,7 @@ bool add_table_for_trigger(THD *thd,
 
 bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
                                             const LEX_CSTRING *name,
-                                            myf MyFlags)
+                                            myf MyFlags, uint flags)
 {
   TABLE table;
   char path[FN_REFLEN];
@@ -2012,11 +2015,11 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
   init_sql_alloc(key_memory_Table_trigger_dispatcher,
                  &table.mem_root, 8192, 0, MYF(MY_WME));
 
-  if (Table_triggers_list::check_n_load(thd, db, name, &table, 1))
+  if (Table_triggers_list::check_n_load(thd, db, name, &table, 1, flags))
   {
     result= 1;
     /* We couldn't parse trigger file, best to just remove it */
-    rm_trigger_file(path, db, name, MyFlags);
+    rm_trigger_file(path, db, name, MyFlags, flags);
     goto end;
   }
   if (table.triggers)
@@ -2050,7 +2053,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
         }
       }
     }
-    if (rm_trigger_file(path, db, name, MyFlags))
+    if (rm_trigger_file(path, db, name, MyFlags, flags))
       result= 1;
     delete table.triggers;
   }

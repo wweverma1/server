@@ -6922,6 +6922,8 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
   RETURN VALUE
     0  No binary logging in row format
     1  Row needs to be logged
+
+  TODO: remove needless proxy
 */
 
 bool handler::check_table_binlog_row_based()
@@ -6987,8 +6989,7 @@ int handler::binlog_log_row(TABLE *table,
   THD *thd= table->in_use;
   DBUG_ENTER("binlog_log_row");
 
-  if (!thd->binlog_table_maps &&
-      thd->binlog_write_table_maps())
+  if (!thd->binlog_table_maps && thd->binlog_write_table_maps(table))
     DBUG_RETURN(HA_ERR_RBR_LOGGING_FAILED);
 
   error= (*log_func)(thd, table, row_logging_has_trans,
@@ -8317,7 +8318,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
         THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
-        const Lex_table_name &db, int select_count)
+        const Lex_table_name &db)
 {
   if (!(options & HA_VERSIONED_TABLE))
     return false;
@@ -8337,7 +8338,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
          SELECT go last there.
        */
       bool is_dup= false;
-      if (fieldnr >= alter_info->create_list.elements - select_count)
+      if (fieldnr >= alter_info->field_count())
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)
@@ -8744,12 +8745,11 @@ bool Table_period_info::check_field(const Create_field* f,
 }
 
 bool Table_scope_and_contents_source_st::check_fields(
-  THD *thd, Alter_info *alter_info,
-  const Lex_table_name &table_name, const Lex_table_name &db, int select_count)
+    THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
+    const Lex_table_name &db)
 {
-  return vers_check_system_fields(thd, alter_info,
-                                  table_name, db, select_count) ||
-    check_period_fields(thd, alter_info);
+  return vers_check_system_fields(thd, alter_info, table_name, db) ||
+         check_period_fields(thd, alter_info);
 }
 
 bool Table_scope_and_contents_source_st::check_period_fields(

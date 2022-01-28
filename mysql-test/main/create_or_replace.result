@@ -271,6 +271,7 @@ create or replace table test.t1;
 ERROR 42000: A table must have at least 1 column
 show tables;
 Tables_in_test
+t1
 t2
 select * from information_schema.metadata_lock_info
 where table_name not like 'innodb_%_stats';
@@ -280,11 +281,20 @@ THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
 #	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
 #	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
 create or replace table mysqltest2.t2;
 ERROR 42000: A table must have at least 1 column
 select * from information_schema.metadata_lock_info
 where table_name not like 'innodb_%_stats';
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+#	MDL_BACKUP_DDL	NULL	Backup lock		
+#	MDL_BACKUP_DML	NULL	Backup lock		
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+drop table mysqltest2.t2;
+drop table t1;
 create table t1 (i int);
 drop table t1;
 create table test.t1 (i int);
@@ -303,6 +313,7 @@ create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
 show tables;
 Tables_in_test
+t1
 t2
 select * from information_schema.metadata_lock_info
 where table_name not like 'innodb_%_stats';
@@ -312,11 +323,20 @@ THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
 #	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
 #	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
 create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
 select * from information_schema.metadata_lock_info
 where table_name not like 'innodb_%_stats';
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+#	MDL_BACKUP_DDL	NULL	Backup lock		
+#	MDL_BACKUP_DML	NULL	Backup lock		
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+drop table mysqltest2.t2;
+drop table t1;
 create table t1 (i int);
 drop table t1;
 create table test.t1 (i int) engine=innodb;
@@ -361,6 +381,7 @@ THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
 create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
 ERROR 22001: Data too long for column 'a' at row 1
+drop table t1;
 show tables;
 Tables_in_test
 t2
@@ -578,3 +599,226 @@ ERROR HY000: Table 't3' was not locked with LOCK TABLES
 UNLOCK TABLES;
 DROP TABLE t3;
 # End of 10.4 tests
+#
+# MDEV-25292 Atomic CREATE OR REPLACE TABLE
+#
+create table t1 (a int);
+insert t1 values (1), (1);
+create table t2 (c int);
+create or replace table t2 (a int, b int, key k (a), key k (b));
+ERROR 42000: Duplicate key name 'k'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t2 (a int, b int, key k (a), key k (b)) as select a, a as b from t1;
+ERROR 42000: Duplicate key name 'k'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t2 (a int primary key) as select * from t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set @old_mode= @@sql_mode;
+set @@sql_mode='ALLOW_INVALID_DATES';
+create table t3 (dt datetime default '2008-02-31 00:00:00');
+set @@sql_mode= @old_mode;
+create or replace table t2 like t3;
+ERROR 42000: Invalid default value for 'dt'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+# LOCK TABLES
+lock tables t2 write, t1 write;
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+create or replace table t2 (y int);
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+create or replace table t2 like t1;
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+create or replace table t2 (y int) as select * from t1;
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+unlock tables;
+# SP
+create or replace procedure sp(n int)
+begin
+select concat('sp call ', n, ':') as '';
+show open tables like 't2';
+create or replace table t2 (y int);
+select 'create or replace table t2 (y int);' as '';
+show open tables like 't2';
+insert into t2 values (2);
+select 'insert into t2 values (2);' as '';
+show open tables like 't2';
+create or replace table t2 like t1;
+select 'create or replace table t2 like t1;' as '';
+show open tables like 't2';
+create or replace table t2 (y int) as select * from t1;
+select 'create or replace table t2 (y int) as select * from t1;' as '';
+show open tables like 't2';
+select 'select * from t2;' as '';
+select * from t2;
+show open tables  like 't2';
+end $
+flush tables;
+call sp(1);
+
+sp call 1:
+Database	Table	In_use	Name_locked
+
+create or replace table t2 (y int);
+Database	Table	In_use	Name_locked
+
+insert into t2 values (2);
+Database	Table	In_use	Name_locked
+test	t2	0	0
+
+create or replace table t2 like t1;
+Database	Table	In_use	Name_locked
+
+create or replace table t2 (y int) as select * from t1;
+Database	Table	In_use	Name_locked
+
+select * from t2;
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	0	0
+call sp(2);
+
+sp call 2:
+Database	Table	In_use	Name_locked
+test	t2	0	0
+
+create or replace table t2 (y int);
+Database	Table	In_use	Name_locked
+
+insert into t2 values (2);
+Database	Table	In_use	Name_locked
+test	t2	0	0
+
+create or replace table t2 like t1;
+Database	Table	In_use	Name_locked
+
+create or replace table t2 (y int) as select * from t1;
+Database	Table	In_use	Name_locked
+
+select * from t2;
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	0	0
+# SP under LOCK TABLES
+lock tables t2 write, t1 write;
+call sp(3);
+
+sp call 3:
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 (y int);
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+insert into t2 values (2);
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 like t1;
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 (y int) as select * from t1;
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+select * from t2;
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	1	0
+call sp(4);
+
+sp call 4:
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 (y int);
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+insert into t2 values (2);
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 like t1;
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+create or replace table t2 (y int) as select * from t1;
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+select * from t2;
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	1	0
+unlock tables;
+drop procedure sp;
+drop tables t1, t2, t3;
+# Trigger
+create table t1 (a int);
+create trigger a before insert on t1 for each row set @s= 1;
+create or replace table t1 (old int);
+show create trigger a;
+ERROR HY000: Trigger does not exist
+drop table t1;
+# Foreign keys
+create table t1 (x int primary key, y int) engine innodb;
+create table t2 (x int references t1(x)) engine innodb;
+create or replace table t1 (x int primary key);
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+create or replace table t1 (x int primary key);
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+create table t3 (x int);
+create or replace table t1 like t3;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+create or replace table t1 like t3;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+create or replace table t1 select * from t3;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+create or replace table t1 select * from t3;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  `y` int(11) DEFAULT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop tables t3, t2, t1;

@@ -26,6 +26,7 @@ SHOW TABLES;
 show create table t1;
 --sync_slave_with_master
 SHOW TABLES;
+show create table t1;
 --connection master
 
 --disable_warnings

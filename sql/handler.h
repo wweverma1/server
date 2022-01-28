@@ -35,6 +35,7 @@
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
 #include "vers_string.h"
+#include "backup.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
 
@@ -1827,6 +1828,12 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT (1 << 20)
 
+/*
+  Indicates that rename table is expensive operation.
+  When set atomic CREATE OR REPLACE TABLE is not used.
+*/
+#define HTON_EXPENSIVE_RENAME (1 << 21)
+
 class Ha_trx_info;
 
 struct THD_TRANS
@@ -2303,8 +2310,7 @@ struct Table_scope_and_contents_source_st:
   bool fix_period_fields(THD *thd, Alter_info *alter_info);
   bool check_fields(THD *thd, Alter_info *alter_info,
                     const Lex_table_name &table_name,
-                    const Lex_table_name &db,
-                    int select_count= 0);
+                    const Lex_table_name &db);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
@@ -2312,9 +2318,33 @@ struct Table_scope_and_contents_source_st:
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
                                 const Lex_table_name &table_name,
-                                const Lex_table_name &db,
-                                int select_count= 0);
+                                const Lex_table_name &db);
+};
 
+typedef struct st_ddl_log_state DDL_LOG_STATE;
+
+struct Atomic_info
+{
+  TABLE_LIST *tmp_name;
+  DDL_LOG_STATE *ddl_log_state_create;
+  DDL_LOG_STATE *ddl_log_state_rm;
+  backup_log_info drop_entry;
+
+  Atomic_info() :
+    tmp_name(NULL),
+    ddl_log_state_create(NULL),
+    ddl_log_state_rm(NULL)
+    {
+      bzero(&drop_entry, sizeof(drop_entry));
+    }
+
+  Atomic_info(DDL_LOG_STATE *ddl_log_state_rm) :
+    tmp_name(NULL),
+    ddl_log_state_create(NULL),
+    ddl_log_state_rm(ddl_log_state_rm)
+    {
+      bzero(&drop_entry, sizeof(drop_entry));
+    }
 };
 
 
@@ -2324,7 +2354,8 @@ struct Table_scope_and_contents_source_st:
   parts are handled on the SQL level and are not needed on the handler level.
 */
 struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
-                       public Schema_specification_st
+                       public Schema_specification_st,
+                       public Atomic_info
 {
   /* TODO: remove after MDEV-20865 */
   Alter_info *alter_info;
@@ -2369,6 +2400,16 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
     else
       return table_options;
   }
+  bool ok_atomic_replace() const
+  {
+    return !tmp_table() && !sequence &&
+           !(db_type->flags & HTON_EXPENSIVE_RENAME) &&
+           !DBUG_IF("ddl_log_expensive_rename");
+  }
+  bool handle_atomic_replace(THD *thd, const LEX_CSTRING &db,
+                             const LEX_CSTRING &table_name,
+                             const DDL_options_st options);
+  bool finalize_ddl(THD *thd);
 };
 
 
@@ -2400,6 +2441,10 @@ struct Table_specification_st: public HA_CREATE_INFO,
   {
     HA_CREATE_INFO::options= 0;
     DDL_options_st::init();
+  }
+  bool is_atomic_replace() const
+  {
+    return or_replace() && ok_atomic_replace();
   }
 };
 

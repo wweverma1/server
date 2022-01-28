@@ -1044,6 +1044,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
   TABLE_LIST *tables= NULL;
   TABLE_LIST *table;
   DDL_LOG_STATE ddl_log_state;
+  Atomic_info atomic_replace_info(&ddl_log_state);
   Drop_table_error_handler err_handler;
   LEX_CSTRING rm_db;
   char db_tmp[SAFE_NAME_LEN+1];
@@ -1121,8 +1122,8 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
   thd->push_internal_handler(&err_handler);
   if (!thd->killed &&
       !(tables &&
-        mysql_rm_table_no_locks(thd, tables, &rm_db, &ddl_log_state, true, false,
-                                true, false, true, false)))
+        mysql_rm_table_no_locks(thd, tables, &rm_db, &atomic_replace_info,
+                                true, false, true, false, true, false)))
   {
     debug_crash_here("ddl_log_drop_after_drop_tables");
 

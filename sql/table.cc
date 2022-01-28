@@ -3509,7 +3509,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   promote_first_timestamp_column(&thd->lex->alter_info.create_list);
   file= mysql_create_frm_image(thd, db, table_name,
                                &thd->lex->create_info, &thd->lex->alter_info,
-                               C_ORDINARY_CREATE, &unused1, &unused2, &frm);
+                               CREATE_ORDINARY, &unused1, &unused2, &frm);
   error|= file == 0;
   delete file;
 
