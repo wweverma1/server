@@ -54,6 +54,7 @@ let $fail_statement= $crash_statement;
 --echo #
 --echo # MDEV-22165 CONVERT PARTITION: move in partition from existing table
 --echo #
+call mtr.add_suppression("p2 is open on rename new table2");
 let $create_statement= create or replace table t1 (x int primary key)
   partition by range(x) (
     partition p1 values less than (10),

@@ -1961,6 +1961,7 @@ SET SESSION debug_dbug=@save_dbug;
 #
 # MDEV-22165 CONVERT PARTITION: move in partition from existing table
 #
+call mtr.add_suppression("p2 is open on rename new table2");
 set @save_dbug=@@debug_dbug;
 set session debug_dbug="+d,fail_convert_partition_1";
 create or replace table t2 (x int primary key);
