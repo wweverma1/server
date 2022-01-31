@@ -2580,7 +2580,10 @@ fts_update_next_doc_id(
 	doc_id_t		doc_id)		/*!< in: DOC ID to set */
 {
 	table->fts->cache->synced_doc_id = doc_id;
-	table->fts->cache->next_doc_id = doc_id + 1;
+	/* Update the max value as next FTS_DOC_ID */
+	if (doc_id + 1 > table->fts->cache->next_doc_id) {
+		table->fts->cache->next_doc_id = doc_id + 1;
+	}
 
 	table->fts->cache->first_doc_id = table->fts->cache->next_doc_id;
 
