@@ -11466,14 +11466,46 @@ Lex_cast_type_st::create_typecast_item_or_error(THD *thd, Item *item,
 }
 
 
-void Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
-                                                 const char *length,
-                                                 uint32 flags)
+bool
+Lex_length_and_dec_st::set(const char *plength, const char *pdec)
+{
+  m_length= m_dec= 0;
+  if ((m_has_explicit_length= (plength != nullptr)))
+  {
+    int err;
+    ulonglong tmp= my_strtoll10(plength, NULL, &err);
+    if (tmp > UINT_MAX32 || err)
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "length>4294967295");
+      return true;
+    }
+    m_length= (uint32) tmp;
+  }
+
+  if ((m_has_explicit_dec= (pdec != nullptr)))
+  {
+    int err;
+    ulonglong tmp= my_strtoll10(pdec, NULL, &err);
+    if (tmp > 255 || err)
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "scale>255");
+      return true;
+    }
+    m_dec= (uint8) tmp;
+  }
+  return false;
+}
+
+
+void
+Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
+                                            const Lex_length_and_dec_st &attr,
+                                            uint32 flags)
 {
   DBUG_ASSERT(!handler->is_unsigned());
+  set(handler, attr);
   if (flags & UNSIGNED_FLAG)
-    handler= handler->type_handler_unsigned();
-  set(handler, length, NULL);
+    m_handler= m_handler->type_handler_unsigned();
 }
 
 

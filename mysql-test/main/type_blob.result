@@ -855,7 +855,7 @@ drop table b15776;
 create table b15776 (data blob(4294967295));
 drop table b15776;
 create table b15776 (data blob(4294967296));
-ERROR 42000: Display width out of range for 'data' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 (a blob(2147483647), b blob(2147483648), c blob(4294967295), a1 text(2147483647), b1 text(2147483648), c1 text(4294967295) );
 show columns from b15776;
 Field	Type	Null	Key	Default	Extra
@@ -867,13 +867,13 @@ b1	longtext	YES		NULL
 c1	longtext	YES		NULL	
 drop table b15776;
 CREATE TABLE b15776 (a blob(4294967296));
-ERROR 42000: Display width out of range for 'a' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 (a text(4294967296));
-ERROR 42000: Display width out of range for 'a' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 (a blob(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-ERROR 42000: Display width out of range for 'a' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 (a text(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-ERROR 42000: Display width out of range for 'a' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 (a int(0));
 INSERT INTO b15776 values (NULL), (1), (42), (654);
 SELECT * from b15776 ORDER BY a;
@@ -898,7 +898,7 @@ ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT 
 CREATE TABLE b15776 (a char(4294967295));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a char(4294967296));
-ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 (a year(?));
 Warnings:
 Note	1287	'YEAR(?)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
@@ -908,12 +908,7 @@ a
 2042
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(4294967296));
-SHOW CREATE TABLE b15776;
-Table	Create Table
-b15776	CREATE TABLE `b15776` (
-  `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-DROP TABLE b15776;
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 (a year(0));
 Warnings:
 Note	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
@@ -925,22 +920,17 @@ ERROR 42000: Too big precision 4294967294 specified for 'a'. Maximum is 6
 CREATE TABLE b15776 (a timestamp(4294967295));
 ERROR 42000: Too big precision 4294967295 specified for 'a'. Maximum is 6
 CREATE TABLE b15776 (a timestamp(4294967296));
-ERROR 42000: Too big precision 4294967296 specified for 'a'. Maximum is 6
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 (a timestamp(-1));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1))' at line 1
 CREATE TABLE b15776 (a timestamp(-2));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2))' at line 1
 CREATE TABLE b15776 (a int(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-ERROR 42000: Display width out of range for 'a' (max = 255)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 (a char(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 (a year(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-SHOW CREATE TABLE b15776;
-Table	Create Table
-b15776	CREATE TABLE `b15776` (
-  `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-DROP TABLE b15776;
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 CREATE TABLE b15776 select cast(null as char(4294967295));
 show columns from b15776;
 Field	Type	Null	Key	Default	Extra
@@ -966,11 +956,11 @@ explain select cast(1 as binary(4294967295));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain select cast(1 as char(4294967296));
-ERROR 42000: Display width out of range for '1' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 explain select cast(1 as nchar(4294967296));
-ERROR 42000: Display width out of range for '1' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 explain select cast(1 as binary(4294967296));
-ERROR 42000: Display width out of range for '1' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 explain select cast(1 as decimal(-1));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1))' at line 1
 explain select cast(1 as decimal(64, 30));
@@ -986,23 +976,23 @@ explain select convert(1, char(4294967295));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain select convert(1, char(4294967296));
-ERROR 42000: Display width out of range for '1' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 explain select convert(1, char(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-ERROR 42000: Display width out of range for '1' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 explain select convert(1, nchar(4294967295));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain select convert(1, nchar(4294967296));
-ERROR 42000: Display width out of range for '1' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 explain select convert(1, nchar(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-ERROR 42000: Display width out of range for '1' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 explain select convert(1, binary(4294967295));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain select convert(1, binary(4294967296));
-ERROR 42000: Display width out of range for '1' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 explain select convert(1, binary(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-ERROR 42000: Display width out of range for '1' (max = 4294967295)
+ERROR 42000: This version of MariaDB doesn't yet support 'length>4294967295'
 End of 5.0 tests
 CREATE TABLE t1(id INT NOT NULL);
 CREATE TABLE t2(id INT NOT NULL, c TEXT NOT NULL);

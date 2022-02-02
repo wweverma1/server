@@ -10417,16 +10417,11 @@ void
 Column_definition_attributes::set_length_and_dec(const Lex_length_and_dec_st
                                                  &type)
 {
-  if (type.length())
-  {
-    int err;
-    length= my_strtoll10(type.length(), NULL, &err);
-    if (err)
-      length= ~0ULL; // safety
-  }
+  if (type.has_explicit_length())
+    length= type.length();
 
-  if (type.dec())
-    decimals= (uint) atoi(type.dec());
+  if (type.has_explicit_dec())
+    decimals= type.dec();
 }
 
 
