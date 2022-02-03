@@ -1,0 +1,54 @@
+
+#
+# Purpose:
+#
+# Methodology:
+#
+# References:
+#
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+
+--connection master
+# Save old state
+let $ORIG_GTID_DOMAIN_ID = `select @@session.gtid_domain_id`;
+let $ORIG_SERVER_ID = `select @@session.server_id`;
+
+
+# Initialize test data
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+SET @@session.server_id= 3;
+INSERT INTO t1 values (2);
+--let t_checksum= `CHECKSUM TABLE t1`
+--save_master_pos
+
+--connection slave
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+START SLAVE UNTIL master_gtid_pos="0-1-4";
+--source include/wait_for_slave_to_start.inc
+--sync_with_master
+
+show binlog events;
+
+if ($t_checksum != `CHECKSUM TABLE t1`)
+{
+    show binlog events;
+    die "Slave filtered events from server 2";
+}
+
+# Cleanup
+--connection slave
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+RESET MASTER;
+
+--source include/rpl_end.inc

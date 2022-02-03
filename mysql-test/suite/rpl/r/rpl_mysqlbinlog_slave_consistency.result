@@ -1,0 +1,1107 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+RESET MASTER;
+connection slave;
+include/start_slave.inc
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0,1);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0,1 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0,1);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0,1 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(1);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=1 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(0,1);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=0,1 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+START SLAVE UNTIL master_gtid_pos="1-1-2";
+# Because there is a stop position we wait for events to process
+# Stop slave so it stops receiving master's events.
+Warnings:
+Note	1255	Slave already has been stopped
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --stop-position=1-1-2 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="1-4-2";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t3'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0), IGNORE_SERVER_IDS=(1);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 --ignore-server-ids=1 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(1,2), IGNORE_SERVER_IDS=(1);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=1,2 --ignore-server-ids=1 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
+START SLAVE UNTIL master_gtid_pos="0-1-4";
+# Because there is a stop position we wait for events to process
+# Stop slave so it stops receiving master's events.
+Warnings:
+Note	1255	Slave already has been stopped
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 --stop-position=0-1-4 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
+START SLAVE UNTIL master_gtid_pos="0-1-4";
+# Because there is a stop position we wait for events to process
+# Stop slave so it stops receiving master's events.
+Warnings:
+Note	1255	Slave already has been stopped
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0 --stop-position=0-1-4 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 0 tables
+# Verifying integrity of tables..
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(3);
+START SLAVE UNTIL master_gtid_pos="0-1-4";
+# Because there is a stop position we wait for events to process
+# Stop slave so it stops receiving master's events.
+Warnings:
+Note	1255	Slave already has been stopped
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=3 --stop-position=0-1-4 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="1-1-2";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(2);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=2 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(1);
+START SLAVE ;
+# Wait for slave to start
+# Wait for Slave SQL
+# Wait for Slave IO
+# Stop slave so it stops receiving master's events.
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=1 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
+START SLAVE UNTIL master_gtid_pos="0-3-3";
+# Because there is a stop position we wait for events to process
+# Stop slave so it stops receiving master's events.
+Warnings:
+Note	1255	Slave already has been stopped
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 --stop-position=0-3-3 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(1);
+START SLAVE UNTIL master_gtid_pos="0-3-3";
+# Because there is a stop position we wait for events to process
+# Stop slave so it stops receiving master's events.
+Warnings:
+Note	1255	Slave already has been stopped
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=1 --stop-position=0-3-3 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 0 tables
+# Verifying integrity of tables..
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
+START SLAVE UNTIL master_gtid_pos="0-3-3";
+# Because there is a stop position we wait for events to process
+# Stop slave so it stops receiving master's events.
+Warnings:
+Note	1255	Slave already has been stopped
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0 --stop-position=0-3-3 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 0 tables
+# Verifying integrity of tables..
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(1);
+START SLAVE UNTIL master_gtid_pos="0-3-3";
+# Because there is a stop position we wait for events to process
+# Stop slave so it stops receiving master's events.
+Warnings:
+Note	1255	Slave already has been stopped
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=1 --stop-position=0-3-3 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case :
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-0";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(3);
+START SLAVE UNTIL master_gtid_pos="0-3-3";
+# Because there is a stop position we wait for events to process
+# Stop slave so it stops receiving master's events.
+Warnings:
+Note	1255	Slave already has been stopped
+# Use mysqlbinlog to update master with the same parameters as slave
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=3 --stop-position=0-3-3 | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+connection master;
+RESET MASTER;
+include/rpl_end.inc
+# End of tests (rpl.rpl_mysqlbinlog_slave_consistency)

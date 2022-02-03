@@ -3489,7 +3489,8 @@ void free_gtid_filter_element(void *p)
 }
 
 Id_delegating_gtid_event_filter::Id_delegating_gtid_event_filter()
-    : m_num_stateful_filters(0), m_num_completed_filters(0)
+    : m_num_stateful_filters(0), m_num_completed_filters(0),
+      m_whitelist_set(FALSE), m_blacklist_set(FALSE)
 {
   my_hash_init(PSI_INSTRUMENT_ME, &m_filters_by_id_hash, &my_charset_bin, 32,
                offsetof(gtid_filter_element, identifier),
@@ -3571,6 +3572,140 @@ my_bool Id_delegating_gtid_event_filter::exclude(rpl_gtid *gtid)
   }
 
   return ret;
+}
+
+int Id_delegating_gtid_event_filter::set_blacklist(
+    gtid_filter_identifier *id_list, size_t n_ids)
+{
+  size_t id_ctr;
+  int err;
+
+  if (m_whitelist_set)
+  {
+    /*
+      Whitelist is already set, we can't do a blacklist and whitelist together
+    */
+    err= 1;
+    sql_print_error("Cannot create exclusion rule for %s ids because an "
+                    "inclusion rule already exists (possibly from specifying "
+                    "both --do-%s-ids and --ignore-%s-ids)",
+                    get_id_type_name(), get_id_type_name(),
+                    get_id_type_name());
+    goto err;
+  }
+
+  /* If a blacklist is specified more than once, only use the latest values */
+  if (m_blacklist_set)
+    my_hash_reset(&m_filters_by_id_hash);
+
+  for (id_ctr= 0; id_ctr < n_ids; id_ctr++)
+  {
+    gtid_filter_identifier filter_id= id_list[id_ctr];
+    gtid_filter_element *map_element=
+        find_or_create_filter_element_for_id(filter_id);
+
+    if(map_element == NULL)
+    {
+      err= 1;
+      goto err;
+    }
+    else if (map_element->filter == NULL)
+    {
+      map_element->filter= new Reject_all_gtid_filter();
+      m_num_stateful_filters++;
+    }
+    else if (map_element->filter->get_filter_type() !=
+             REJECT_ALL_GTID_FILTER_TYPE)
+    {
+      /*
+        There is a different filter placed on an id that should be blacklisted.
+        Error.
+      */
+      err= 1;
+      sql_print_error("Cannot set filter blacklist on %s id %lu because it "
+                      "already has a filtering rule",
+                      get_id_type_name(), filter_id);
+      goto err;
+    }
+  }
+
+  /*
+    With a blacklist, we by default want to accept everything that is not
+    specified in the list
+  */
+  set_default_filter(new Accept_all_gtid_filter());
+  m_blacklist_set= TRUE;
+  err= 0;
+
+err:
+  return err;
+}
+
+int Id_delegating_gtid_event_filter::set_whitelist(
+    gtid_filter_identifier *id_list, size_t n_ids)
+{
+  size_t id_ctr;
+  int err;
+
+  if (m_blacklist_set)
+  {
+    /*
+      Blacklist is already set, we can't do a blacklist and whitelist together
+    */
+    err= 1;
+    sql_print_error("Cannot create inclusion rule for %s ids because an "
+                    "exclusion rule already exists (possibly from specifying "
+                    "both --ignore-%s-ids and --do-%s-ids)",
+                    get_id_type_name(), get_id_type_name(),
+                    get_id_type_name());
+    goto err;
+  }
+
+  /* If a whitelist is specified more than once, only use the latest values */
+  if (m_whitelist_set)
+    my_hash_reset(&m_filters_by_id_hash);
+
+  for (id_ctr= 0; id_ctr < n_ids; id_ctr++)
+  {
+    gtid_filter_identifier filter_id= id_list[id_ctr];
+    gtid_filter_element *map_element=
+        find_or_create_filter_element_for_id(filter_id);
+
+    if(map_element == NULL)
+    {
+      err= 1;
+      goto err;
+    }
+    else if (map_element->filter == NULL)
+    {
+      map_element->filter= new Accept_all_gtid_filter();
+      m_num_stateful_filters++;
+    }
+    else if (map_element->filter->get_filter_type() !=
+             ACCEPT_ALL_GTID_FILTER_TYPE)
+    {
+      /*
+        There is a different filter placed on an id that should be whitelisted.
+        Error.
+      */
+      err= 1;
+      sql_print_error("Cannot set filter whitelist on %s id %lu because it "
+                      "already has a filtering rule",
+                      get_id_type_name(), filter_id);
+      goto err;
+    }
+  }
+
+  /*
+    With a whitelist, we by only want to accept the ids which are specified.
+    Everything else should be denied.
+  */
+  set_default_filter(new Reject_all_gtid_filter());
+  m_whitelist_set= TRUE;
+  err= 0;
+
+err:
+  return err;
 }
 
 Window_gtid_event_filter *
@@ -3839,4 +3974,10 @@ my_bool Domain_gtid_event_filter::exclude(rpl_gtid *gtid)
 
   return include_domain ? Id_delegating_gtid_event_filter::exclude(gtid)
                         : TRUE;
+}
+
+my_bool Intersecting_gtid_event_filter::exclude(rpl_gtid *gtid)
+{
+  DBUG_ASSERT(m_filter1 && m_filter2);
+  return m_filter1->exclude(gtid) || m_filter2->exclude(gtid);
 }

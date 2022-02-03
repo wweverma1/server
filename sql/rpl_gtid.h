@@ -533,7 +533,8 @@ public:
     DELEGATING_GTID_FILTER_TYPE = 1,
     WINDOW_GTID_FILTER_TYPE = 2,
     ACCEPT_ALL_GTID_FILTER_TYPE = 3,
-    REJECT_ALL_GTID_FILTER_TYPE = 4
+    REJECT_ALL_GTID_FILTER_TYPE = 4,
+    INTERSECTING_GTID_FILTER_TYPE = 5
   };
 
   /*
@@ -730,6 +731,21 @@ public:
   uint32 get_filter_type() { return DELEGATING_GTID_FILTER_TYPE; }
 
   virtual gtid_filter_identifier get_id_from_gtid(rpl_gtid *) = 0;
+  virtual const char* get_id_type_name() = 0;
+
+  /*
+    Set the default behavior to include all ids except for the ones that are
+    provided in the input list or overridden with another filter.
+    Returns 0 on ok, non-zero on error
+  */
+  int set_blacklist(gtid_filter_identifier *id_list, size_t n_ids);
+
+  /*
+    Set the default behavior to exclude all ids except for the ones that are
+    provided in the input list or overridden with another filter.
+    Returns 0 on ok, non-zero on error
+  */
+  int set_whitelist(gtid_filter_identifier *id_list, size_t n_ids);
 
 protected:
 
@@ -738,6 +754,8 @@ protected:
   Gtid_event_filter *m_default_filter;
 
   HASH m_filters_by_id_hash;
+
+  my_bool m_whitelist_set, m_blacklist_set;
 
   gtid_filter_element *find_or_create_filter_element_for_id(gtid_filter_identifier);
 };
@@ -781,6 +799,8 @@ public:
   {
     return gtid->domain_id;
   }
+
+  const char* get_id_type_name() { return "domain"; }
 
   /*
     Override Id_delegating_gtid_event_filter to extend with domain specific
@@ -839,6 +859,67 @@ private:
   DYNAMIC_ARRAY m_stop_filters;
 
   Window_gtid_event_filter *find_or_create_window_filter_for_id(gtid_filter_identifier);
+};
+
+/*
+  A subclass of Id_delegating_gtid_event_filter which identifies filters using the
+  server id of a GTID.
+*/
+class Server_gtid_event_filter : public Id_delegating_gtid_event_filter
+{
+
+public:
+  /*
+    Returns the server id of from the input GTID
+  */
+  gtid_filter_identifier get_id_from_gtid(rpl_gtid *gtid)
+  {
+    return gtid->server_id;
+  }
+
+  const char* get_id_type_name() { return "server"; }
+};
+
+/*
+  A Gtid_event_filter implementation that delegates the filtering to two
+  other filters, where the result is the intersection between the two.
+*/
+class Intersecting_gtid_event_filter : public Gtid_event_filter
+{
+public:
+  Intersecting_gtid_event_filter(Gtid_event_filter *filter1,
+                                 Gtid_event_filter *filter2)
+      : m_filter1(filter1), m_filter2(filter2) {}
+  ~Intersecting_gtid_event_filter()
+  {
+    delete m_filter1;
+    delete m_filter2;
+  }
+
+  /*
+    Returns TRUE if either m_filter1 or m_filter1 exclude the gtid, returns
+    FALSE otherwise, i.e. both m_filter1 and m_filter2 allow the gtid
+  */
+  my_bool exclude(rpl_gtid *gtid);
+  uint32 get_filter_type() { return INTERSECTING_GTID_FILTER_TYPE; }
+
+  Gtid_event_filter *get_filter_1() { return m_filter1; }
+  Gtid_event_filter *get_filter_2() { return m_filter2; }
+
+  /*
+    Returns true if either filter has finished. To elaborate, as this filter
+    performs an intersection, if either filter has finished, the result would
+    be excluded regardless.
+  */
+  my_bool has_finished()
+  {
+    DBUG_ASSERT(m_filter1 && m_filter2);
+    return m_filter1->has_finished() || m_filter2->has_finished();
+  }
+
+  protected:
+    Gtid_event_filter *m_filter1;
+    Gtid_event_filter *m_filter2;
 };
 
 #endif  /* RPL_GTID_H */

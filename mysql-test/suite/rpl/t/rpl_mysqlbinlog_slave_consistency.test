@@ -1,0 +1,281 @@
+#
+# Purpose:
+#
+# Methodology:
+#
+# References:
+#
+--source include/master-slave.inc
+
+--source include/have_log_bin.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+RESET MASTER;
+
+# Save old state
+let $ORIG_GTID_DOMAIN_ID = `select @@session.gtid_domain_id`;
+let $ORIG_SERVER_ID = `select @@session.server_id`;
+
+# Configure test variables
+--let $MYSQLD_DATADIR=`select @@datadir`
+--let BINLOG_FILENAME= query_get_value(SHOW MASTER STATUS, File, 1)
+--let BINLOG_FILE_PARAM= $MYSQLD_DATADIR/$BINLOG_FILENAME.orig
+
+
+--copy_file $MYSQLD_DATADIR/$BINLOG_FILENAME $BINLOG_FILE_PARAM
+
+--connection slave
+--source include/start_slave.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=0
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=0,1
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=0
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=0,1
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=1
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=0,1
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=1-1-2
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=1-4-2
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=0
+--let $ignore_domain_ids=
+--let $ignore_server_ids=1
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=1,2
+--let $ignore_server_ids=1
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=0
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=0-1-4
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=0
+--let $ignore_server_ids=
+--let $stop_position=0-1-4
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=3
+--let $stop_position=0-1-4
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=2
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=1-1-2
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=0
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=1
+--let $stop_position=
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=0
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=0-3-3
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=1
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=0-3-3
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=0
+--let $ignore_server_ids=
+--let $stop_position=0-3-3
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=1
+--let $ignore_server_ids=
+--let $stop_position=0-3-3
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case :
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=3
+--let $stop_position=0-3-3
+--let $start_position=0-1-0
+--source include/mysqlbinlog_slave_consistency.inc
+
+# Cleanup
+--connection master
+RESET MASTER;
+
+--source include/rpl_end.inc
+
+--echo # End of tests (rpl.rpl_mysqlbinlog_slave_consistency)
