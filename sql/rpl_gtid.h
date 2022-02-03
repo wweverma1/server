@@ -37,9 +37,6 @@ struct rpl_gtid
   uint64 seq_no;
 };
 
-/* Data structure to help with quick lookup for filters. */
-typedef decltype(rpl_gtid::domain_id) gtid_filter_identifier;
-
 inline bool operator==(const rpl_gtid& lhs, const rpl_gtid& rhs)
 {
   return
@@ -464,7 +461,8 @@ public:
     Ensures that the expected stop GTID positions exist within the specified
     binary logs.
   */
-  my_bool verify_stop_state(FILE *out, rpl_gtid *stop_gtids, size_t n_stop_gtids);
+  my_bool verify_stop_state(FILE *out, rpl_gtid *stop_gtids,
+                            size_t n_stop_gtids);
 
   /*
     Ensure a GTID state (e.g., from a Gtid_list_log_event) is consistent with
@@ -513,8 +511,8 @@ public:
 private:
 
   /*
-    Holds the records for each domain id we are monitoring. Elements are of type
-    `struct audit_elem` and indexed by domian_id.
+    Holds the records for each domain id we are monitoring. Elements are of
+    type `struct audit_elem` and indexed by domian_id.
   */
   HASH m_audit_elem_domain_lookup;
 };
@@ -533,7 +531,8 @@ public:
     DELEGATING_GTID_FILTER_TYPE = 1,
     WINDOW_GTID_FILTER_TYPE = 2,
     ACCEPT_ALL_GTID_FILTER_TYPE = 3,
-    REJECT_ALL_GTID_FILTER_TYPE = 4
+    REJECT_ALL_GTID_FILTER_TYPE = 4,
+    INTERSECTING_GTID_FILTER_TYPE = 5
   };
 
   /*
@@ -596,8 +595,9 @@ public:
   positions, m_start (exclusive) and m_stop (inclusive), within a domain.
 
   This filter is stateful, such that it expects GTIDs to be an increasing
-  stream, and internally, the window will activate and deactivate when the start
-  and stop positions of the event stream have passed through, respectively.
+  stream, and internally, the window will activate and deactivate when the
+  start and stop positions of the event stream have passed through,
+  respectively.
 */
 class Window_gtid_event_filter : public Gtid_event_filter
 {
@@ -701,11 +701,11 @@ private:
   rpl_gtid m_stop;
 };
 
-typedef struct _gtid_filter_element
+template <typename T> struct gtid_filter_element
 {
   Gtid_event_filter *filter;
-  gtid_filter_identifier identifier; /* Used for HASH lookup */
-} gtid_filter_element;
+  T identifier; /* Used for HASH lookup */
+};
 
 /*
   Gtid_event_filter subclass which has no specific implementation, but rather
@@ -715,8 +715,10 @@ typedef struct _gtid_filter_element
   filter can be identified.
 
   This class should be subclassed, where the get_id_from_gtid function
-  specifies how to extract the filter identifier from a GTID.
+  specifies how to extract the filter identifier from a GTID. The type of the
+  filter identifier is a template for the class.
 */
+template <typename T>
 class Id_delegating_gtid_event_filter : public Gtid_event_filter
 {
 public:
@@ -729,7 +731,22 @@ public:
 
   uint32 get_filter_type() { return DELEGATING_GTID_FILTER_TYPE; }
 
-  virtual gtid_filter_identifier get_id_from_gtid(rpl_gtid *) = 0;
+  virtual T get_id_from_gtid(rpl_gtid *) = 0;
+  virtual const char* get_id_type_name() = 0;
+
+  /*
+    Set the default behavior to include all ids except for the ones that are
+    provided in the input list or overridden with another filter.
+    Returns 0 on ok, non-zero on error
+  */
+  int set_blacklist(T *id_list, size_t n_ids);
+
+  /*
+    Set the default behavior to exclude all ids except for the ones that are
+    provided in the input list or overridden with another filter.
+    Returns 0 on ok, non-zero on error
+  */
+  int set_whitelist(T *id_list, size_t n_ids);
 
 protected:
 
@@ -739,12 +756,14 @@ protected:
 
   HASH m_filters_by_id_hash;
 
-  gtid_filter_element *find_or_create_filter_element_for_id(gtid_filter_identifier);
+  my_bool m_whitelist_set, m_blacklist_set;
+
+  gtid_filter_element<T> *find_or_create_filter_element_for_id(T);
 };
 
 /*
-  A subclass of Id_delegating_gtid_event_filter which identifies filters using the
-  domain id of a GTID.
+  A subclass of Id_delegating_gtid_event_filter which identifies filters using
+  the domain id of a GTID.
 
   Additional helper functions include:
     add_start_gtid(GTID)   : adds a start GTID position to this filter, to be
@@ -758,15 +777,18 @@ protected:
     get_num_start_gtids()  : gets the count of added GTID start positions
     get_num_stop_gtids()   : gets the count of added GTID stop positions
 */
-class Domain_gtid_event_filter : public Id_delegating_gtid_event_filter
+class Domain_gtid_event_filter
+    : public Id_delegating_gtid_event_filter<decltype(rpl_gtid::domain_id)>
 {
 public:
   Domain_gtid_event_filter()
   {
     my_init_dynamic_array(PSI_INSTRUMENT_ME, &m_start_filters,
-                          sizeof(gtid_filter_element*), 8, 8, MYF(0));
+                          sizeof(decltype(rpl_gtid::domain_id) *), 8, 8,
+                          MYF(0));
     my_init_dynamic_array(PSI_INSTRUMENT_ME, &m_stop_filters,
-                          sizeof(gtid_filter_element*), 8, 8, MYF(0));
+                          sizeof(decltype(rpl_gtid::domain_id) *), 8, 8,
+                          MYF(0));
   }
   ~Domain_gtid_event_filter()
   {
@@ -777,10 +799,12 @@ public:
   /*
     Returns the domain id of from the input GTID
   */
-  gtid_filter_identifier get_id_from_gtid(rpl_gtid *gtid)
+  decltype(rpl_gtid::domain_id) get_id_from_gtid(rpl_gtid *gtid)
   {
     return gtid->domain_id;
   }
+
+  const char* get_id_type_name() { return "domain"; }
 
   /*
     Override Id_delegating_gtid_event_filter to extend with domain specific
@@ -838,7 +862,70 @@ private:
   DYNAMIC_ARRAY m_start_filters;
   DYNAMIC_ARRAY m_stop_filters;
 
-  Window_gtid_event_filter *find_or_create_window_filter_for_id(gtid_filter_identifier);
+  Window_gtid_event_filter *
+  find_or_create_window_filter_for_id(decltype(rpl_gtid::domain_id));
+};
+
+/*
+  A subclass of Id_delegating_gtid_event_filter which identifies filters using
+  the server id of a GTID.
+*/
+class Server_gtid_event_filter
+    : public Id_delegating_gtid_event_filter<decltype(rpl_gtid::server_id)>
+{
+
+public:
+  /*
+    Returns the server id of from the input GTID
+  */
+  decltype(rpl_gtid::server_id) get_id_from_gtid(rpl_gtid *gtid)
+  {
+    return gtid->server_id;
+  }
+
+  const char* get_id_type_name() { return "server"; }
+};
+
+/*
+  A Gtid_event_filter implementation that delegates the filtering to two
+  other filters, where the result is the intersection between the two.
+*/
+class Intersecting_gtid_event_filter : public Gtid_event_filter
+{
+public:
+  Intersecting_gtid_event_filter(Gtid_event_filter *filter1,
+                                 Gtid_event_filter *filter2)
+      : m_filter1(filter1), m_filter2(filter2) {}
+  ~Intersecting_gtid_event_filter()
+  {
+    delete m_filter1;
+    delete m_filter2;
+  }
+
+  /*
+    Returns TRUE if either m_filter1 or m_filter1 exclude the gtid, returns
+    FALSE otherwise, i.e. both m_filter1 and m_filter2 allow the gtid
+  */
+  my_bool exclude(rpl_gtid *gtid);
+  uint32 get_filter_type() { return INTERSECTING_GTID_FILTER_TYPE; }
+
+  Gtid_event_filter *get_filter_1() { return m_filter1; }
+  Gtid_event_filter *get_filter_2() { return m_filter2; }
+
+  /*
+    Returns true if either filter has finished. To elaborate, as this filter
+    performs an intersection, if either filter has finished, the result would
+    be excluded regardless.
+  */
+  my_bool has_finished()
+  {
+    DBUG_ASSERT(m_filter1 && m_filter2);
+    return m_filter1->has_finished() || m_filter2->has_finished();
+  }
+
+  protected:
+    Gtid_event_filter *m_filter1;
+    Gtid_event_filter *m_filter2;
 };
 
 #endif  /* RPL_GTID_H */

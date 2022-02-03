@@ -16,6 +16,7 @@
 
 
 /* Definitions for MariaDB global transaction ID (GTID). */
+#include <type_traits>
 
 #ifndef MYSQL_CLIENT
 #include "mariadb.h"
@@ -3480,32 +3481,42 @@ my_bool Window_gtid_event_filter::has_finished()
   return m_has_stop ? m_has_passed : FALSE;
 }
 
-void free_gtid_filter_element(void *p)
+void free_u32_gtid_filter_element(void *p)
 {
-  gtid_filter_element *gfe = (gtid_filter_element *) p;
+  gtid_filter_element<uint32> *gfe= (gtid_filter_element<uint32> *) p;
   if (gfe->filter)
     delete gfe->filter;
   my_free(gfe);
 }
 
-Id_delegating_gtid_event_filter::Id_delegating_gtid_event_filter()
-    : m_num_stateful_filters(0), m_num_completed_filters(0)
+template <typename T>
+Id_delegating_gtid_event_filter<T>::Id_delegating_gtid_event_filter()
+    : m_num_stateful_filters(0), m_num_completed_filters(0),
+      m_whitelist_set(FALSE), m_blacklist_set(FALSE)
 {
+  void (*free_func)(void *);
+  if (std::is_same<T,uint32>::value)
+    free_func= free_u32_gtid_filter_element;
+  else
+    DBUG_ASSERT(0);
+
   my_hash_init(PSI_INSTRUMENT_ME, &m_filters_by_id_hash, &my_charset_bin, 32,
-               offsetof(gtid_filter_element, identifier),
-               sizeof(gtid_filter_identifier), NULL, free_gtid_filter_element,
+               offsetof(gtid_filter_element<T>, identifier),
+               sizeof(T), NULL, free_func,
                HASH_UNIQUE);
 
   m_default_filter= new Accept_all_gtid_filter();
 }
 
-Id_delegating_gtid_event_filter::~Id_delegating_gtid_event_filter()
+template <typename T>
+Id_delegating_gtid_event_filter<T>::~Id_delegating_gtid_event_filter()
 {
   my_hash_free(&m_filters_by_id_hash);
   delete m_default_filter;
 }
 
-void Id_delegating_gtid_event_filter::set_default_filter(
+template <typename T>
+void Id_delegating_gtid_event_filter<T>::set_default_filter(
     Gtid_event_filter *filter)
 {
   if (m_default_filter)
@@ -3514,17 +3525,19 @@ void Id_delegating_gtid_event_filter::set_default_filter(
   m_default_filter= filter;
 }
 
-gtid_filter_element *
-Id_delegating_gtid_event_filter::find_or_create_filter_element_for_id(
-    gtid_filter_identifier filter_id)
+template <typename T>
+gtid_filter_element<T> *
+Id_delegating_gtid_event_filter<T>::find_or_create_filter_element_for_id(
+    T filter_id)
 {
-  gtid_filter_element *fe= (gtid_filter_element *) my_hash_search(
-      &m_filters_by_id_hash, (const uchar *) &filter_id, 0);
+  gtid_filter_element<T> *fe=
+      (gtid_filter_element<T> *) my_hash_search(
+          &m_filters_by_id_hash, (const uchar *) &filter_id, 0);
 
   if (!fe)
   {
-    gtid_filter_element *new_fe= (gtid_filter_element *) my_malloc(
-        PSI_NOT_INSTRUMENTED, sizeof(gtid_filter_element), MYF(MY_WME));
+    gtid_filter_element<T> *new_fe= (gtid_filter_element<T> *) my_malloc(
+        PSI_NOT_INSTRUMENTED, sizeof(gtid_filter_element<T>), MYF(MY_WME));
     new_fe->filter= NULL;
     new_fe->identifier= filter_id;
     if (my_hash_insert(&m_filters_by_id_hash, (uchar*) new_fe))
@@ -3539,7 +3552,8 @@ Id_delegating_gtid_event_filter::find_or_create_filter_element_for_id(
   return fe;
 }
 
-my_bool Id_delegating_gtid_event_filter::has_finished()
+template <typename T>
+my_bool Id_delegating_gtid_event_filter<T>::has_finished()
 {
   /*
     If all user-defined filters have deactivated, we are effectively
@@ -3549,11 +3563,13 @@ my_bool Id_delegating_gtid_event_filter::has_finished()
          m_num_completed_filters == m_num_stateful_filters;
 }
 
-my_bool Id_delegating_gtid_event_filter::exclude(rpl_gtid *gtid)
+template <typename T>
+my_bool Id_delegating_gtid_event_filter<T>::exclude(rpl_gtid *gtid)
 {
-  gtid_filter_identifier filter_id= get_id_from_gtid(gtid);
-  gtid_filter_element *filter_element= (gtid_filter_element *) my_hash_search(
-      &m_filters_by_id_hash, (const uchar *) &filter_id, 0);
+  T filter_id= get_id_from_gtid(gtid);
+  gtid_filter_element<T> *filter_element=
+      (gtid_filter_element<T> *) my_hash_search(&m_filters_by_id_hash,
+                                                (const uchar *) &filter_id, 0);
   Gtid_event_filter *filter=
       (filter_element ? filter_element->filter : m_default_filter);
   my_bool ret= TRUE;
@@ -3573,11 +3589,135 @@ my_bool Id_delegating_gtid_event_filter::exclude(rpl_gtid *gtid)
   return ret;
 }
 
+template <typename T>
+int Id_delegating_gtid_event_filter<T>::set_blacklist(T *id_list, size_t n_ids)
+{
+  size_t id_ctr;
+  int err;
+
+  if (m_whitelist_set)
+  {
+    /*
+      A do filtering rule is already set, we can't have a do and ignore filter
+      together
+    */
+    sql_print_error("Cannot create ignore filtering rule for %s id because a "
+                    "do rule already exists",
+                    get_id_type_name());
+    err= 1;
+    goto err;
+  }
+
+  /* If a blacklist is specified more than once, only use the latest values */
+  if (m_blacklist_set)
+    my_hash_reset(&m_filters_by_id_hash);
+
+  for (id_ctr= 0; id_ctr < n_ids; id_ctr++)
+  {
+    T filter_id= id_list[id_ctr];
+    gtid_filter_element<T> *map_element=
+        find_or_create_filter_element_for_id(filter_id);
+
+    if(map_element == NULL)
+    {
+      /*
+        If map_element is NULL, find_or_create_filter_element_for_id failed and
+        has already written the error message
+      */
+      err= 1;
+      goto err;
+    }
+    else if (map_element->filter == NULL)
+    {
+      map_element->filter= new Reject_all_gtid_filter();
+      m_num_stateful_filters++;
+    }
+    else
+    {
+      DBUG_ASSERT(map_element->filter->get_filter_type() ==
+                  REJECT_ALL_GTID_FILTER_TYPE);
+    }
+  }
+
+  /*
+    With a blacklist, we by default want to accept everything that is not
+    specified in the list
+  */
+  set_default_filter(new Accept_all_gtid_filter());
+  m_blacklist_set= TRUE;
+  err= 0;
+
+err:
+  return err;
+}
+
+template <typename T>
+int Id_delegating_gtid_event_filter<T>::set_whitelist(T *id_list, size_t n_ids)
+{
+  size_t id_ctr;
+  int err;
+
+  if (m_blacklist_set)
+  {
+    /*
+      An ignore filtering rule is already set, we can't have a do and ignore
+      filter together
+    */
+    sql_print_error("Cannot create do filtering rule for %s id because an "
+                    "ignore rule already exists",
+                    get_id_type_name());
+    err= 1;
+    goto err;
+  }
+
+  /* If a whitelist is specified more than once, only use the latest values */
+  if (m_whitelist_set)
+    my_hash_reset(&m_filters_by_id_hash);
+
+  for (id_ctr= 0; id_ctr < n_ids; id_ctr++)
+  {
+    T filter_id= id_list[id_ctr];
+    gtid_filter_element<T> *map_element=
+        find_or_create_filter_element_for_id(filter_id);
+
+    if(map_element == NULL)
+    {
+      /*
+        If map_element is NULL, find_or_create_filter_element_for_id failed and
+        has already written the error message
+      */
+      err= 1;
+      goto err;
+    }
+    else if (map_element->filter == NULL)
+    {
+      map_element->filter= new Accept_all_gtid_filter();
+      m_num_stateful_filters++;
+    }
+    else
+    {
+      DBUG_ASSERT(map_element->filter->get_filter_type() ==
+                  ACCEPT_ALL_GTID_FILTER_TYPE);
+    }
+  }
+
+  /*
+    With a whitelist, we by only want to accept the ids which are specified.
+    Everything else should be denied.
+  */
+  set_default_filter(new Reject_all_gtid_filter());
+  m_whitelist_set= TRUE;
+  err= 0;
+
+err:
+  return err;
+}
+
 Window_gtid_event_filter *
 Domain_gtid_event_filter::find_or_create_window_filter_for_id(
-    uint32 domain_id)
+    decltype(rpl_gtid::domain_id) domain_id)
 {
-  gtid_filter_element *filter_element=
+  gtid_filter_element<decltype(rpl_gtid::domain_id)> *filter_element=
       find_or_create_filter_element_for_id(domain_id);
   Window_gtid_event_filter *wgef= NULL;
 
@@ -3606,9 +3746,11 @@ Domain_gtid_event_filter::find_or_create_window_filter_for_id(
   return wgef;
 }
 
-static my_bool check_filter_entry_validity(void *entry, void *are_filters_invalid_arg)
+static my_bool check_filter_entry_validity(void *entry,
+                                           void *are_filters_invalid_arg)
 {
-  gtid_filter_element *fe= (gtid_filter_element*) entry;
+  gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+      (gtid_filter_element<decltype(rpl_gtid::domain_id)> *) entry;
 
   if (fe)
   {
@@ -3629,7 +3771,8 @@ static my_bool check_filter_entry_validity(void *entry, void *are_filters_invali
 int Domain_gtid_event_filter::validate_window_filters()
 {
   int are_filters_invalid= 0;
-  my_hash_iterate(&m_filters_by_id_hash, check_filter_entry_validity, &are_filters_invalid);
+  my_hash_iterate(&m_filters_by_id_hash, check_filter_entry_validity,
+                  &are_filters_invalid);
   return are_filters_invalid;
 }
 
@@ -3645,8 +3788,9 @@ int Domain_gtid_event_filter::add_start_gtid(rpl_gtid *gtid)
   }
   else if (!(err= filter_to_update->set_start_gtid(gtid)))
   {
-    gtid_filter_element *fe= (gtid_filter_element *) my_hash_search(
-        &m_filters_by_id_hash, (const uchar *) &(gtid->domain_id), 0);
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        (gtid_filter_element<decltype(rpl_gtid::domain_id)> *) my_hash_search(
+            &m_filters_by_id_hash, (const uchar *) &(gtid->domain_id), 0);
     insert_dynamic(&m_start_filters, (const void *) &fe);
   }
 
@@ -3665,8 +3809,9 @@ int Domain_gtid_event_filter::add_stop_gtid(rpl_gtid *gtid)
   }
   else if (!(err= filter_to_update->set_stop_gtid(gtid)))
   {
-    gtid_filter_element *fe= (gtid_filter_element *) my_hash_search(
-        &m_filters_by_id_hash, (const uchar *) &(gtid->domain_id), 0);
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        (gtid_filter_element<decltype(rpl_gtid::domain_id)> *) my_hash_search(
+            &m_filters_by_id_hash, (const uchar *) &(gtid->domain_id), 0);
     insert_dynamic(&m_stop_filters, (const void *) &fe);
 
     /*
@@ -3699,8 +3844,9 @@ rpl_gtid *Domain_gtid_event_filter::get_start_gtids()
 
   for (i = 0; i < n_start_gtids; i++)
   {
-    gtid_filter_element *fe=
-        *(gtid_filter_element **) dynamic_array_ptr(&m_start_filters, i);
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        *(gtid_filter_element<decltype(rpl_gtid::domain_id)> **)
+            dynamic_array_ptr(&m_start_filters, i);
     DBUG_ASSERT(fe->filter &&
                 fe->filter->get_filter_type() == WINDOW_GTID_FILTER_TYPE);
     Window_gtid_event_filter *wgef=
@@ -3724,8 +3870,9 @@ rpl_gtid *Domain_gtid_event_filter::get_stop_gtids()
 
   for (i = 0; i < n_stop_gtids; i++)
   {
-    gtid_filter_element *fe=
-        *(gtid_filter_element **) dynamic_array_ptr(&m_stop_filters, i);
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        *(gtid_filter_element<decltype(rpl_gtid::domain_id)> **)
+            dynamic_array_ptr(&m_stop_filters, i);
     DBUG_ASSERT(fe->filter &&
                 fe->filter->get_filter_type() == WINDOW_GTID_FILTER_TYPE);
     Window_gtid_event_filter *wgef=
@@ -3743,8 +3890,9 @@ void Domain_gtid_event_filter::clear_start_gtids()
   uint32 i;
   for (i = 0; i < get_num_start_gtids(); i++)
   {
-    gtid_filter_element *fe=
-        *(gtid_filter_element **) dynamic_array_ptr(&m_start_filters, i);
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        *(gtid_filter_element<decltype(rpl_gtid::domain_id)> **)
+            dynamic_array_ptr(&m_start_filters, i);
     DBUG_ASSERT(fe->filter &&
                 fe->filter->get_filter_type() == WINDOW_GTID_FILTER_TYPE);
     Window_gtid_event_filter *wgef=
@@ -3775,8 +3923,9 @@ void Domain_gtid_event_filter::clear_stop_gtids()
 
   for (i = 0; i < get_num_stop_gtids(); i++)
   {
-    gtid_filter_element *fe=
-        *(gtid_filter_element **) dynamic_array_ptr(&m_stop_filters, i);
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        *(gtid_filter_element<decltype(rpl_gtid::domain_id)> **)
+            dynamic_array_ptr(&m_stop_filters, i);
     DBUG_ASSERT(fe->filter &&
                 fe->filter->get_filter_type() == WINDOW_GTID_FILTER_TYPE);
     Window_gtid_event_filter *wgef=
@@ -3822,10 +3971,10 @@ my_bool Domain_gtid_event_filter::exclude(rpl_gtid *gtid)
   */
   if (get_num_stop_gtids())
   {
-    gtid_filter_identifier filter_id= get_id_from_gtid(gtid);
-    gtid_filter_element *filter_element=
-        (gtid_filter_element *) my_hash_search(&m_filters_by_id_hash,
-                                               (const uchar *) &filter_id, 0);
+    decltype(rpl_gtid::domain_id) filter_id= get_id_from_gtid(gtid);
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *filter_element=
+        (gtid_filter_element<decltype(rpl_gtid::domain_id)> *) my_hash_search(
+            &m_filters_by_id_hash, (const uchar *) &filter_id, 0);
     if (filter_element)
     {
       Gtid_event_filter *filter= filter_element->filter;
@@ -3839,4 +3988,10 @@ my_bool Domain_gtid_event_filter::exclude(rpl_gtid *gtid)
 
   return include_domain ? Id_delegating_gtid_event_filter::exclude(gtid)
                         : TRUE;
+}
+
+my_bool Intersecting_gtid_event_filter::exclude(rpl_gtid *gtid)
+{
+  DBUG_ASSERT(m_filter1 && m_filter2);
+  return m_filter1->exclude(gtid) || m_filter2->exclude(gtid);
 }
