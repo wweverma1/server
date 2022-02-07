@@ -2664,4 +2664,19 @@ drop procedure sp;
 drop procedure sp2;
 drop prepare ps;
 drop prepare ps2;
+#
+# MDEV-27456 Assertion `!thd->is_error()' fails in vers_create_partitions upon DML with ER_UNKNOWN_PARTITION
+#
+create table t (a int) with system versioning
+partition by system_time interval 1 minute auto;
+set @@timestamp= @@timestamp + 61;
+select * from t;
+a
+delete from t partition (px);
+ERROR HY000: Unknown partition 'px' in table 't'
+lock tables t write;
+delete from t partition (px);
+ERROR HY000: Unknown partition 'px' in table 't'
+unlock tables;
+drop table t;
 SET GLOBAL innodb_stats_persistent=@save_persistent;

@@ -1869,6 +1869,22 @@ drop procedure sp2;
 drop prepare ps;
 drop prepare ps2;
 
+--echo #
+--echo # MDEV-27456 Assertion `!thd->is_error()' fails in vers_create_partitions upon DML with ER_UNKNOWN_PARTITION
+--echo #
+create table t (a int) with system versioning
+partition by system_time interval 1 minute auto;
+set @@timestamp= @@timestamp + 61;
+select * from t;
+--error ER_UNKNOWN_PARTITION
+delete from t partition (px);
+lock tables t write;
+--error ER_UNKNOWN_PARTITION
+delete from t partition (px);
+unlock tables;
+# cleanup
+drop table t;
+
 --disable_prepare_warnings
 SET GLOBAL innodb_stats_persistent=@save_persistent;
 --source suite/versioning/common_finish.inc
