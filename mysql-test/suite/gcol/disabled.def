@@ -1,0 +1,2 @@
+innodb_virtual_debug : MDEV-15250 FIXME
+virtual_index_drop : MDEV-15250 FIXME

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1176,15 +1176,21 @@ inline void trx_t::commit_tables()
 {
   if (undo_no && !mod_tables.empty())
   {
+    bool apply= !rsegs.m_redo.rseg;
     const trx_id_t max_trx_id= trx_sys.get_max_trx_id();
     const auto now= start_time;
 
     for (const auto &p : mod_tables)
     {
       dict_table_t *table= p.first;
+      if (!apply && table->is_active_ddl())
+        apply= true;
       table->update_time= now;
       table->query_cache_inv_trx_id= max_trx_id;
     }
+
+    if (UNIV_UNLIKELY(apply && rsegs.m_redo.rseg))
+      apply_log();
   }
 }
 
@@ -1396,7 +1402,7 @@ void trx_t::commit_cleanup()
 TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 {
   ut_ad(!mtr || mtr->is_active());
-  ut_d(bool aborted = in_rollback && error_state == DB_DEADLOCK);
+  ut_d(bool aborted= in_rollback && error_state == DB_DEADLOCK);
   ut_ad(!mtr == (aborted || !has_logged()));
   ut_ad(!mtr || !aborted);
 
@@ -1415,7 +1421,7 @@ TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
       ut_ad(error == DB_DUPLICATE_KEY || error == DB_LOCK_WAIT_TIMEOUT);
   }
 
-#ifndef DBUG_OFF
+#ifdef ENABLED_DEBUG_SYNC
   const bool debug_sync= mysql_thd && has_logged_persistent();
 #endif
 
@@ -1440,7 +1446,7 @@ TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 
     mtr->commit();
   }
-#ifndef DBUG_OFF
+#ifdef ENABLED_DEBUG_SYNC
   if (debug_sync)
     DEBUG_SYNC_C("before_trx_state_committed_in_memory");
 #endif

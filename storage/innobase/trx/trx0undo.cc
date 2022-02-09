@@ -290,6 +290,42 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
                                               mtr);
 }
 
+/** Apply any changes to tables for which online DDL is in progress. */
+ATTRIBUTE_COLD void trx_t::apply_log() const
+{
+  const trx_undo_t *undo= rsegs.m_redo.undo;
+  if (!undo)
+    return;
+  page_id_t id{rsegs.m_redo.rseg->space->id, undo->hdr_page_no};
+  mtr_t mtr;
+  mtr.start();
+  buf_block_t *block= buf_page_get(id, 0, RW_S_LATCH, &mtr);
+  ut_ad(block);
+  while (block)
+  {
+    trx_undo_rec_t *rec= trx_undo_page_get_first_rec(block, id.page_no(),
+                                                     undo->hdr_offset);
+    ut_ad(rec);
+    while (rec)
+    {
+      // FIXME: do something with the record
+      rec= trx_undo_page_get_next_rec(block, page_offset(rec), id.page_no(),
+                                      undo->hdr_offset);
+    }
+    uint32_t next= mach_read_from_4(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
+                                    FLST_NEXT + FIL_ADDR_PAGE +
+                                    block->page.frame);
+    if (next == FIL_NULL)
+      break;
+    id.set_page_no(next);
+    mtr.commit();
+    mtr.start();
+    block= buf_page_get(id, 0, RW_S_LATCH, &mtr);
+    ut_ad(block);
+  }
+  mtr.commit();
+}
+
 /*============== UNDO LOG FILE COPY CREATION AND FREEING ==================*/
 
 /** Initialize an undo log page.

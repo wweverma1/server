@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2356,6 +2356,22 @@ public:
     for (lock_t *lock= UT_LIST_GET_FIRST(locks); lock;
          lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
       if (lock->trx != trx)
+        return true;
+    return false;
+  }
+
+  /** @return whether a DDL operation is in progress on this table */
+  bool is_active_ddl() const
+  {
+    const dict_index_t *i= UT_LIST_GET_FIRST(indexes);
+    if (UNIV_LIKELY_NULL(i->online_log))
+      return true;
+    // FIXME: add a flag
+    // (or a dummy online_log pointer value, say, i->online_log == this)
+    // to denote "online ADD INDEX is in progress", to avoid the following loop
+    // on every trx_t::commit()
+    while ((i= UT_LIST_GET_NEXT(indexes, i)) != nullptr)
+      if (!i->is_committed())
         return true;
     return false;
   }

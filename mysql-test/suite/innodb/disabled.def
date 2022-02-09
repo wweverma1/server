@@ -11,3 +11,14 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
+alter_candidate_key : MDEV-15250 FIXME
+alter_crash : MDEV-15250 FIXME
+alter_mdl_timeout : MDEV-15250 FIXME
+alter_not_null_debug : MDEV-15250 FIXME
+alter_primary_key : MDEV-15250 FIXME
+innodb-alter-debug : MDEV-15250 FIXME
+innodb-index-debug : MDEV-15250 FIXME
+innodb-index-online : MDEV-15250 FIXME
+innodb-table-online : MDEV-15250 FIXME
+instant_alter_debug : MDEV-15250 FIXME
+table_definition_cache_debug : MDEV-15250 FIXME
