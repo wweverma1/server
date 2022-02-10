@@ -561,6 +561,18 @@ struct dtype_t{
 		mbminlen = 0;
 		mbmaxlen = 0;
 	}
+
+  /** Set the type of column */
+  void assign_type(unsigned prtype_col, unsigned mtype_col,
+		   unsigned col_len, unsigned mbminlen_col,
+		   unsigned mbmaxlen_col)
+  {
+    prtype= prtype_col;
+    mtype= mtype_col;
+    len= col_len;
+    mbminlen= mbminlen_col;
+    mbmaxlen= mbmaxlen_col;
+  }
 };
 
 /** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */

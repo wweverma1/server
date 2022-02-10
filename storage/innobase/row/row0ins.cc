@@ -3440,6 +3440,13 @@ row_ins_index_entry_set_vals(
 		} else {
 			row_field = dtuple_get_nth_field(
 				row, ind_field->col->ind);
+			if (index->has_change_col()) {
+				dict_col_t* col= ind_field->col;
+				field->type.assign_type(
+					col->prtype, col->mtype,
+					col->len, col->mbminlen,
+					col->mbmaxlen);
+			}
 		}
 
 		len = dfield_get_len(row_field);

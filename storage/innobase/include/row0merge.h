@@ -288,6 +288,8 @@ the flushing of such pages to the data files was completed.
 @param[in]	index	an index tree on which redo logging was disabled */
 void row_merge_write_redo(const dict_index_t* index);
 
+typedef std::map<unsigned, dict_col_t*> col_collation_list;
+
 /** Build indexes on a table by reading a clustered index, creating a temporary
 file containing index entries, merge sorting these index entries and inserting
 sorted index entries to indexes.
@@ -316,6 +318,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
 @param[in]	allow_non_null	allow the conversion from null to not-null
+@param[in]	col_collate	collation changed columns
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -335,7 +338,8 @@ row_merge_build_indexes(
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
 	struct TABLE*		eval_table,
-	bool			allow_non_null)
+	bool			allow_non_null,
+	col_collation_list*	col_collate=nullptr)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**

@@ -491,6 +491,7 @@ row_merge_buf_redundant_convert(
 @param[in,out]	v_heap		heap memory to process data for virtual column
 @param[in,out]	my_table	mysql table object
 @param[in]	trx		transaction object
+@param[in]	col_collate	precise type of all columns
 @return number of rows added, 0 if out of space */
 static
 ulint
@@ -507,7 +508,8 @@ row_merge_buf_add(
 	dberr_t*		err,
 	mem_heap_t**		v_heap,
 	TABLE*			my_table,
-	trx_t*			trx)
+	trx_t*			trx,
+	col_collation_list*	col_collate)
 {
 	ulint			i;
 	const dict_index_t*	index;
@@ -612,6 +614,18 @@ error:
 				row_field = dtuple_get_nth_field(row,
 								 col->ind);
 				dfield_copy(field, row_field);
+
+				if (col_collate) {
+					auto it= col_collate->find(col->ind);
+					if (it != col_collate->end()) {
+						field->type.assign_type(
+						  it->second->prtype,
+						  it->second->mtype,
+						  it->second->len,
+						  it->second->mbminlen,
+						  it->second->mbmaxlen);
+					}
+				}
 			}
 
 
@@ -1668,6 +1682,7 @@ stage->inc() will be called for each page read.
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
 @param[in]	allow_not_null	allow null to not-null conversion
+@param[in]	col_collate	string column collation list
 @return DB_SUCCESS or error */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
@@ -1695,7 +1710,8 @@ row_merge_read_clustered_index(
 	double 			pct_cost,
 	row_merge_block_t*	crypt_block,
 	struct TABLE*		eval_table,
-	bool			allow_not_null)
+	bool			allow_not_null,
+	col_collation_list*	col_collate)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
 	mem_heap_t*		row_heap = NULL;/* Heap memory to create
@@ -2351,13 +2367,13 @@ write_buffers:
 					      trx->id));
 
 			merge_file_t*	file = &files[k++];
-
 			if (UNIV_LIKELY
 			    (row && (rows_added = row_merge_buf_add(
 					buf, fts_index, old_table, new_table,
 					psort_info, row, ext, &doc_id,
 					conv_heap, &err,
-					&v_heap, eval_table, trx)))) {
+					&v_heap, eval_table, trx,
+					col_collate)))) {
 
 				/* Set the page flush observer for the
 				transaction when buffering the very first
@@ -2690,7 +2706,8 @@ write_buffers:
 						buf, fts_index, old_table,
 						new_table, psort_info, row, ext,
 						&doc_id, conv_heap,
-						&err, &v_heap, eval_table, trx)))) {
+						&err, &v_heap, eval_table, trx,
+						col_collate)))) {
                                         /* An empty buffer should have enough
                                         room for at least one record. */
 					ut_ad(err == DB_COMPUTE_VALUE_FAILED
@@ -4552,6 +4569,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
 @param[in]	allow_not_null	allow the conversion from null to not-null
+@param[in]	col_collate	collation changed columns
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -4571,7 +4589,8 @@ row_merge_build_indexes(
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
 	struct TABLE*		eval_table,
-	bool			allow_not_null)
+	bool			allow_not_null,
+	col_collation_list*	col_collate)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
@@ -4720,7 +4739,8 @@ row_merge_build_indexes(
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, defaults, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
-		pct_cost, crypt_block, eval_table, allow_not_null);
+		pct_cost, crypt_block, eval_table, allow_not_null,
+		col_collate);
 
 	stage->end_phase_read_pk();
 
