@@ -8,7 +8,8 @@ connection slave;
 include/start_slave.inc
 #
 #
-#  Test Case :
+#  Test Case 1: Base case to ensure that mariadb-binlog and replica
+#  are consistent without any filtering
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -17,10 +18,10 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -65,7 +66,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 2: Ensure filtering by a single id in --do-domain-ids is
+#  consistent between mariadb-binlog and replica
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -74,10 +76,10 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -115,7 +117,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 3: Ensure filtering by multiple ids in --do-domain-ids is
+#  consistent between mariadb-binlog and replica
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -124,10 +127,10 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0,1);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -170,8 +173,8 @@ RESET MASTER;
 connection slave;
 connection master;
 #
-#
-#  Test Case :
+#  Test Case 4: Ensure filtering by a single id in --ignore-domain-ids
+#  is consistent between mariadb-binlog and replica
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -180,10 +183,10 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -224,7 +227,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 5: Ensure filtering by multiple ids in --ignore-domain-ids
+#  is consistent between mariadb-binlog and replica
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -233,10 +237,10 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0,1);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -270,8 +274,8 @@ RESET MASTER;
 connection slave;
 connection master;
 #
-#
-#  Test Case :
+#  Test Case 6: Ensure filtering by a single id in --ignore-server-ids
+#  is consistent between mariadb-binlog and replica
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -280,10 +284,10 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(1);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -321,7 +325,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 7: Ensure filtering by multiple ids in --ignore-server-ids
+#  is consistent between mariadb-binlog and replica
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -330,10 +335,10 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(0,1);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -371,7 +376,7 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 8: Ensure stop position consistency
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -380,8 +385,9 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 START SLAVE UNTIL master_gtid_pos="1-1-2";
-# Because there is a stop position we wait for events to process
-# Stop slave so it stops receiving master's events.
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
 Warnings:
 Note	1255	Slave already has been stopped
 # Use mysqlbinlog to update master with the same parameters as slave
@@ -418,7 +424,7 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 9: Ensure start position consistency
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -428,10 +434,10 @@ connection slave;
 set global gtid_slave_pos="1-4-2";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -475,7 +481,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 10: Ensure consistency when filtering by both
+#  --do-domain-ids and --ignore-server-ids
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -484,10 +491,10 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0), IGNORE_SERVER_IDS=(1);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -522,7 +529,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 11: Ensure consistency when filtering by both
+#  --ignore-domain-ids and --ignore-server-ids
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -531,10 +539,10 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(1,2), IGNORE_SERVER_IDS=(1);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -569,7 +577,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 12: Ensure consistency when filtering by
+#  --do-domain-ids with a stop position
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -578,8 +587,9 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
 START SLAVE UNTIL master_gtid_pos="0-1-4";
-# Because there is a stop position we wait for events to process
-# Stop slave so it stops receiving master's events.
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
 Warnings:
 Note	1255	Slave already has been stopped
 # Use mysqlbinlog to update master with the same parameters as slave
@@ -619,7 +629,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 13: Ensure consistency when filtering by
+#  --ignore-domain-ids with a stop position
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -628,8 +639,9 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
 START SLAVE UNTIL master_gtid_pos="0-1-4";
-# Because there is a stop position we wait for events to process
-# Stop slave so it stops receiving master's events.
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
 Warnings:
 Note	1255	Slave already has been stopped
 # Use mysqlbinlog to update master with the same parameters as slave
@@ -665,7 +677,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 14: Ensure consistency when filtering by
+#  --ignore-server-ids with a stop position
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -674,8 +687,9 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(3);
 START SLAVE UNTIL master_gtid_pos="0-1-4";
-# Because there is a stop position we wait for events to process
-# Stop slave so it stops receiving master's events.
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
 Warnings:
 Note	1255	Slave already has been stopped
 # Use mysqlbinlog to update master with the same parameters as slave
@@ -712,7 +726,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 15: Ensure consistency when filtering by
+#  --do-domain-ids with a start position
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -722,10 +737,10 @@ connection slave;
 set global gtid_slave_pos="1-1-2";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(2);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -760,7 +775,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 16: Ensure consistency when filtering by
+#  --ignore-domain-ids with a start position
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -770,10 +786,10 @@ connection slave;
 set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -814,7 +830,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 17: Ensure consistency when filtering by
+#  --ignore-server-ids with a start position
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -824,10 +841,10 @@ connection slave;
 set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(1);
 START SLAVE ;
-# Wait for slave to start
-# Wait for Slave SQL
-# Wait for Slave IO
-# Stop slave so it stops receiving master's events.
+# Wait for slave to catch up to master
+# Wait for slave IO thread to catch up
+# Wait for slave SQL thread to catch up
+# Stop slave so it stops receiving master events.
 # Use mysqlbinlog to update master with the same parameters as slave
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
@@ -865,7 +882,9 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 18: Ensure consistency when filtering by
+#  --do-domain-ids with both a start position and stop position that
+# all have the same domain id
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -875,8 +894,9 @@ connection slave;
 set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
 START SLAVE UNTIL master_gtid_pos="0-3-3";
-# Because there is a stop position we wait for events to process
-# Stop slave so it stops receiving master's events.
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
 Warnings:
 Note	1255	Slave already has been stopped
 # Use mysqlbinlog to update master with the same parameters as slave
@@ -913,7 +933,10 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 19: Ensure consistency when filtering by
+#  --do-domain-ids with both a start position and stop position that
+#  have differing domain ids. Due to the implicit filtering in stop
+#  position, the result should be empty (no tables replicated).
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -923,8 +946,9 @@ connection slave;
 set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(1);
 START SLAVE UNTIL master_gtid_pos="0-3-3";
-# Because there is a stop position we wait for events to process
-# Stop slave so it stops receiving master's events.
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
 Warnings:
 Note	1255	Slave already has been stopped
 # Use mysqlbinlog to update master with the same parameters as slave
@@ -960,7 +984,10 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 20: Ensure consistency when filtering by
+#  --ignore-domain-ids with both a start position and stop position that
+#  all have the same domain id. The result set should be empty due to
+#  implicit filtering from stop position and ignoring that same domain.
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -970,8 +997,9 @@ connection slave;
 set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
 START SLAVE UNTIL master_gtid_pos="0-3-3";
-# Because there is a stop position we wait for events to process
-# Stop slave so it stops receiving master's events.
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
 Warnings:
 Note	1255	Slave already has been stopped
 # Use mysqlbinlog to update master with the same parameters as slave
@@ -1007,7 +1035,11 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 21: Ensure consistency when filtering by
+#  --ignore-domain-ids with both a start position and stop position that
+#  have differing domain ids. The ignore domain ids should take no
+#  effect due to the implicit filtering by stop position, i.e. the
+#  specified domain to ignore is already being filtered.
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -1017,8 +1049,9 @@ connection slave;
 set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(1);
 START SLAVE UNTIL master_gtid_pos="0-3-3";
-# Because there is a stop position we wait for events to process
-# Stop slave so it stops receiving master's events.
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
 Warnings:
 Note	1255	Slave already has been stopped
 # Use mysqlbinlog to update master with the same parameters as slave
@@ -1055,7 +1088,8 @@ connection slave;
 connection master;
 #
 #
-#  Test Case :
+#  Test Case 22: Ensure consistency when filtering by
+#  --ignore-server-ids with both a start position and stop position.
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -1065,8 +1099,9 @@ connection slave;
 set global gtid_slave_pos="0-1-0";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(3);
 START SLAVE UNTIL master_gtid_pos="0-3-3";
-# Because there is a stop position we wait for events to process
-# Stop slave so it stops receiving master's events.
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
 Warnings:
 Note	1255	Slave already has been stopped
 # Use mysqlbinlog to update master with the same parameters as slave

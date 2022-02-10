@@ -1,5 +1,12 @@
-# Ensures that all test tables have data that is the same between two
-# connections, $con1 (master by default) and $con2 ("slave" by default).
+# This file provides logic to ensure that all tables in a database are the
+# same between two connections.
+#
+# param $check_db : The name of the database to validate all tables are the
+#                   same within (test by default)
+# param $con1     : The connection name of the primary server, defaults to
+#                   master
+# param $con2     : The connection name of the replica server, defaults to
+#                   slave
 
 --let $include_filename= rpl_check_table_consistency.inc
 --source include/begin_include_file.inc

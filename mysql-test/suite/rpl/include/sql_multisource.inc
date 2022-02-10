@@ -1,4 +1,6 @@
---echo # Populating master data
+# Populate the active connection server with events that come from varying
+# domain and server ids
+
 --disable_query_log
 
 # Save old state
