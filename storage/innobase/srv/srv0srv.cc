@@ -684,6 +684,7 @@ void srv_boot()
   if (transactional_lock_enabled())
     sql_print_information("InnoDB: Using transactional memory");
 #endif
+  buf_dblwr.init();
   srv_thread_pool_init();
   trx_pool_init();
   srv_init();
@@ -1009,15 +1010,11 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_data_writes = os_n_file_writes;
 
-	ulint dblwr = 0;
-
-	if (buf_dblwr.is_initialised()) {
-		buf_dblwr.lock();
-		dblwr = buf_dblwr.submitted();
-		export_vars.innodb_dblwr_pages_written = buf_dblwr.written();
-		export_vars.innodb_dblwr_writes = buf_dblwr.batches();
-		buf_dblwr.unlock();
-	}
+	buf_dblwr.lock();
+	ulint dblwr = buf_dblwr.submitted();
+	export_vars.innodb_dblwr_pages_written = buf_dblwr.written();
+	export_vars.innodb_dblwr_writes = buf_dblwr.batches();
+	buf_dblwr.unlock();
 
 	export_vars.innodb_data_written = srv_stats.data_written + dblwr;
 

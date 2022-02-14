@@ -92,9 +92,8 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed= nullptr)
 @retval 0 if a buf_pool.LRU batch is already running */
 ulint buf_flush_LRU(ulint max_n);
 
-/** Wait until a flush batch ends.
-@param lru    true=buf_pool.LRU; false=buf_pool.flush_list */
-void buf_flush_wait_batch_end(bool lru);
+/** Wait until a LRU flush batch ends. */
+void buf_flush_wait_LRU_batch_end();
 /** Wait until all persistent pages are flushed up to a limit.
 @param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for */
 ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn);
@@ -106,8 +105,8 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious);
 /** Initialize page_cleaner. */
 ATTRIBUTE_COLD void buf_flush_page_cleaner_init();
 
-/** Wait for pending flushes to complete. */
-void buf_flush_wait_batch_end_acquiring_mutex(bool lru);
+/** Wait for pending LRU flush to complete. */
+void buf_flush_wait_LRU_batch_end_acquiring_mutex();
 
 /** Flush the buffer pool on shutdown. */
 ATTRIBUTE_COLD void buf_flush_buffer_pool();
