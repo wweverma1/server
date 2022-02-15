@@ -2,6 +2,19 @@ install plugin test_sql_service soname 'test_sql_service';
 show status like 'test_sql_service_passed';
 Variable_name	Value
 Test_sql_service_passed	1
+set global test_sql_service_execute_sql_global= 'create table test.t1 select 1 as a, @@SQL_LOG_BIN';
+set global test_sql_service_execute_sql_local=  'insert into test.t1 select 2 as a, @@SQL_LOG_BIN';
+set global test_sql_service_execute_sql_global= 'SET SQL_LOG_BIN=1';
+set global test_sql_service_execute_sql_global= 'insert into test.t1 select 3 as a, @@SQL_LOG_BIN';
+set global test_sql_service_execute_sql_global= 'SET SQL_LOG_BIN=0';
+set global test_sql_service_execute_sql_global= 'insert into test.t1 select 4 as a, @@SQL_LOG_BIN';
+select * from t1 order by a;
+a	@@SQL_LOG_BIN
+1	0
+2	0
+3	1
+4	0
+drop table t1;
 set global test_sql_service_run_test= 1;
 show status like 'test_sql_service_passed';
 Variable_name	Value

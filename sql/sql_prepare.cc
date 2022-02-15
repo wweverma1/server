@@ -5617,12 +5617,30 @@ public:
   THD *new_thd;
   Security_context empty_ctx;
 
+  my_bool do_log_bin;
+
   Protocol_local(THD *thd_arg, THD *new_thd_arg, ulong prealloc) :
     Protocol_text(thd_arg, prealloc),
     cur_data(0), first_data(0), data_tail(&first_data), alloc(0),
-    new_thd(new_thd_arg)
+    new_thd(new_thd_arg), do_log_bin(FALSE)
   {}
  
+  void set_binlog_vars(my_bool *sav_log_bin, ulonglong *sav_bits)
+  {
+    *sav_log_bin= thd->variables.sql_log_bin;
+    *sav_bits= thd->variables.option_bits;
+
+    if ((thd->variables.sql_log_bin= do_log_bin))
+      thd->variables.option_bits|= OPTION_BIN_LOG;
+    else
+      thd->variables.option_bits&= ~OPTION_BIN_LOG;
+  }
+  void restore_binlog_vars(my_bool &sav_log_bin, ulonglong &sav_bits)
+  {
+    do_log_bin= thd->variables.sql_log_bin;
+    thd->variables.sql_log_bin= sav_log_bin;
+    thd->variables.option_bits= sav_bits;
+  }
 protected:
   bool net_store_data(const uchar *from, size_t length);
   bool net_store_data_cs(const uchar *from, size_t length,
@@ -6230,12 +6248,17 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
     Ed_connection con(p->thd);
     Security_context *ctx_orig= p->thd->security_ctx;
     MYSQL_LEX_STRING sql_text;
+    my_bool log_bin_orig;
+    ulonglong option_bits_orig;
+    p->set_binlog_vars(&log_bin_orig, &option_bits_orig);
+
     DBUG_ASSERT(current_thd == p->thd);
     sql_text.str= (char *) arg;
     sql_text.length= arg_length;
     p->thd->security_ctx= &p->empty_ctx;
     result= con.execute_direct(p, sql_text);
     p->thd->security_ctx= ctx_orig;
+    p->restore_binlog_vars(log_bin_orig, option_bits_orig);
   }
   if (skip_check)
     result= 0;
@@ -6391,6 +6414,9 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;
     new_thd->variables.wsrep_on= 0;
+    new_thd->variables.sql_log_bin= 0;
+    new_thd->variables.option_bits&= ~OPTION_BIN_LOG;
+             
     /*
       TOSO: decide if we should turn the auditing off
       for such threads.
