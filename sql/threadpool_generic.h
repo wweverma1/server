@@ -79,6 +79,7 @@ struct TP_connection_generic :public TP_connection
   int init() override { return 0; }
   void set_io_timeout(int sec) override;
   int  start_io() override;
+  bool stop_io() override;
   void wait_begin(int type) override;
   void wait_end() override;
 

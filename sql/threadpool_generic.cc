@@ -1522,6 +1522,12 @@ int TP_connection_generic::start_io()
 }
 
 
+bool TP_connection_generic::stop_io()
+{
+  // Hopefully, all POSIX implementations return ENOENT for the case in question
+  return io_poll_disassociate_fd(thread_group->pollfd, fd) != ENOENT;
+}
+
 
 /**
   Worker thread's main

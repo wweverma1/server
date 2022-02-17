@@ -25,6 +25,7 @@
 #include <threadpool.h>
 #include <sql_class.h>
 #include <sql_parse.h>
+#include "threadpool_generic.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
@@ -173,14 +174,9 @@ static TP_PRIORITY get_priority(TP_connection *c)
   return prio;
 }
 
-
-void tp_callback(TP_connection *c)
+static bool tp_callback_run(TP_connection *c)
 {
   DBUG_ASSERT(c);
-
-  Worker_thread_context worker_context;
-  worker_context.save();
-
   THD *thd= c->thd;
 
   c->state = TP_STATE_RUNNING;
@@ -193,7 +189,7 @@ void tp_callback(TP_connection *c)
     if (!thd)
     {
       /* Bail out on connect error.*/
-      goto error;
+      return false;
     }
     c->connect= 0;
   }
@@ -212,11 +208,10 @@ retry:
           thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
           goto retry;
         }
-        worker_context.restore();
-        return;
+        return false;
       case DISPATCH_COMMAND_CLOSE_CONNECTION:
         /* QUIT or an error occurred. */
-        goto error;
+        return false;
       case DISPATCH_COMMAND_SUCCESS:
         break;
     }
@@ -229,20 +224,34 @@ retry:
   /* Read next command from client. */
   c->set_io_timeout(thd->get_net_wait_timeout());
   c->state= TP_STATE_IDLE;
-  if (c->start_io())
-    goto error;
 
-  worker_context.restore();
-  return;
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  thd->apc_target.process_apc_requests(false);
 
-error:
-  c->thd= 0;
-  if (thd)
+  int error= c->start_io();
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+
+  return error == 0;
+}
+
+void tp_callback(TP_connection *c)
+{
+  Worker_thread_context worker_context;
+  worker_context.save();
+
+  bool success= tp_callback_run(c);
+
+  if (!success)
   {
-    threadpool_remove_connection(thd);
+    THD *thd= c->thd;
+    c->thd= 0;
+    if (thd)
+    {
+      threadpool_remove_connection(thd);
+    }
+    delete c;
+    worker_context.restore();
   }
-  delete c;
-  worker_context.restore();
 }
 
 
@@ -320,6 +329,10 @@ static void threadpool_remove_connection(THD *thd)
   end_connection(thd);
   close_connection(thd, 0);
   unlink_thd(thd);
+  // The rest of APC requests should be processed after unlinking.
+  // This guarantees that no new APC requests can be added.
+  // TODO: better notify the requestor with some KILLED state here.
+  thd->apc_target.process_apc_requests(true);
   PSI_CALL_delete_current_thread(); // before THD is destroyed
   delete thd;
 
@@ -368,6 +381,8 @@ static dispatch_command_return threadpool_process_request(THD *thd)
   thread_attach(thd);
   if(thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
     goto resume;
+
+  thd->apc_target.process_apc_requests();
 
   if (thd->killed >= KILL_CONNECTION)
   {
@@ -577,6 +592,20 @@ static void tp_resume(THD* thd)
   pool->resume(c);
 }
 
+int io_poll_disassociate_fd(TP_file_handle pollfd, TP_file_handle fd);
+
+static void tp_notify_apc(THD *thd)
+{
+  mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
+  TP_connection* c = get_TP_connection(thd);
+
+  bool stopped= c->stop_io();
+  if (stopped)
+  {
+    pool->resume(c); // add c to the task queue
+  }
+}
+
 static scheduler_functions tp_scheduler_functions=
 {
   0,                                  // max_threads
@@ -588,7 +617,8 @@ static scheduler_functions tp_scheduler_functions=
   tp_wait_end,                        // thd_wait_end
   tp_post_kill_notification,          // post kill notification
   tp_end,                              // end
-  tp_resume
+  tp_resume,
+  tp_notify_apc,
 };
 
 void pool_of_threads_scheduler(struct scheduler_functions *func,

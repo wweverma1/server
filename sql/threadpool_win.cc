@@ -18,6 +18,7 @@
 #endif
 
 #define _WIN32_WINNT 0x0601
+#define WIN32
 
 #include "mariadb.h"
 #include <violite.h>
