@@ -84,6 +84,7 @@ bool is_secure_file_path(char *path);
 extern void init_net_server_extension(THD *thd);
 extern void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock);
 extern void create_new_thread(CONNECT *connect);
+void thread_scheduler_notify_apc(THD *thd);
 
 extern void ssl_acceptor_stats_update(int sslaccept_ret);
 extern int reinit_ssl();

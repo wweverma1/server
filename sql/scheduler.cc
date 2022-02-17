@@ -120,6 +120,7 @@ void one_thread_per_connection_scheduler(scheduler_functions *func,
   func->connection_count= arg_connection_count;
   func->add_connection= create_thread_to_handle_connection;
   func->post_kill_notification= post_kill_notification;
+  func->notify_apc= thread_scheduler_notify_apc;
 }
 #else
 void handle_connection_in_main_thread(CONNECT *connect)

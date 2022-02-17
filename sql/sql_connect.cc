@@ -1109,6 +1109,14 @@ static int check_connection(THD *thd)
 void setup_connection_thread_globals(THD *thd)
 {
   thd->store_globals();
+#ifndef WIN32
+  struct sigaction act {};
+  act.sa_handler=   [](int){
+    current_thd->net.vio->read_timeout = 1;
+  };
+  act.sa_flags= SA_RESTART;
+  sigaction(SIG_APC_NOTIFY, &act, NULL);
+#endif
 }
 
 

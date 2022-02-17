@@ -5989,6 +5989,20 @@ void create_thread_to_handle_connection(CONNECT *connect)
   DBUG_VOID_RETURN;
 }
 
+void thread_scheduler_notify_apc(THD *thd)
+{
+#ifdef WIN32
+  HANDLE hthread= OpenThread(THREAD_ALL_ACCESS, FALSE,
+                             thd->mysys_var->pthread_self);
+  QueueUserAPC2(
+      (ULONG_PTR param)[]{ ((THD*)param)->net.vio->read_timeout = 1; },
+      hthread, (ULONG_PTR)thd,
+      QUEUE_USER_APC_FLAGS_SPECIAL_USER_APC);
+  CancelSynchronousIo(hthread);
+#else
+  pthread_kill(thd->mysys_var->pthread_self, SIG_APC_NOTIFY);
+#endif
+}
 
 /**
   Create new thread to handle incoming connection.
