@@ -134,6 +134,11 @@
    - Nodes representing unique keys. Unique key has
       = incoming edges from key component value modules
       = outgoing edge to key's table module
+   - Nodes representing synthetic "unique keys" for derived tables.
+     Synthetic unique keys are composed as a result of GROUP BY expressions.
+     Like normal unique keys, they have:
+      = incoming edges from key component value modules
+      = outgoing edge to key's table module
    - Inner side of outer join module. Outer join module has
       = incoming edges from table value modules
       = No outgoing edges. Once we reach it, we know we can eliminate the 
@@ -205,6 +210,7 @@ class Dep_module;
   class Dep_module_expr;
   class Dep_module_goal;
   class Dep_module_key;
+  class Dep_module_synthetic_key;
 
 class Dep_analysis_context;
 
@@ -278,6 +284,8 @@ private:
     Dep_module_key *key_dep;
     /* Otherwise, this and advance */
     uint equality_no;
+
+    Dep_module_synthetic_key *synth_key_dep;
   };
   friend class Dep_analysis_context;
   friend class Field_dependency_recorder; 
@@ -302,12 +310,18 @@ class Dep_value_table : public Dep_value
 {
 public:
   Dep_value_table(TABLE *table_arg) : 
-    table(table_arg), fields(NULL), keys(NULL)
+    table(table_arg), fields(NULL), keys(NULL), synthetic_key(NULL)
   {}
   TABLE *table;  /* Table this object is representing */
   /* Ordered list of fields that belong to this table */
   Dep_value_field *fields;
-  Dep_module_key *keys; /* Ordered list of Unique keys in this table */
+
+  /* Ordered list of Unique keys in this table */
+  Dep_module_key *keys; 
+
+  /* Possible synthetic key applicable for this table
+  (only none or a single one is possible) */
+  Dep_module_synthetic_key *synthetic_key; 
 
   /* Iteration over unbound modules that are our dependencies */
   Iterator init_unbound_modules_iter(char *buf);
@@ -447,6 +461,55 @@ const size_t Dep_module::iterator_size=
   MY_MAX(Dep_module_expr::iterator_size, Dep_module_key::iterator_size);
 
 
+/* A synthetic unique key module for a derived table.
+  For example, a derived table
+  SELECT t11.a, count(*) from t1 LEFT JOIN t2 ON t1.id = t2.fk GROUP BY t11.a
+  has unique values in its first field (t11.a) due to GROUP BY expression
+  so this can be considered as a unique key for this derived table
+*/
+
+class Dep_module_synthetic_key : public Dep_module
+{
+public:
+  Dep_module_synthetic_key(Dep_value_table *table_arg,
+                           std::vector<int>&& field_indexes)
+      : table(table_arg), derived_table_field_indexes(field_indexes)
+  {
+    unbound_args= field_indexes.size();
+  }
+
+  Dep_value_table * table;
+
+  /* Vector of field numbers (indexes) in the derived table's SELECT list
+     which are included in the GROUP BY expression.
+     For example, synthetic key for SQL
+     "SELECT count(t12.pk) as cnt, t11.a as a FROM t11 LEFT JOIN t12
+     ON t12.pk=t11.b GROUP BY t11.a, t12.b"
+     will include one element: {1}, since "t11.a" is in the
+     GROUP BY list and is present in the SELECT list with index 1
+     (numeration starts from 0). Field "t12.b" is not included since
+     though it's present in the GROUP BY list but is missing in the SELECT list
+  */
+  std::vector<int> derived_table_field_indexes;
+
+  Iterator init_unbound_values_iter(char *buf) override;
+  
+  Dep_value *get_next_unbound_value(Dep_analysis_context *dac,
+                                    Iterator iter) override;
+  static const size_t iterator_size;
+
+private:
+  class Value_iter
+  {
+  public:
+    Dep_value_table *table;
+  };
+};
+
+const size_t Dep_module_synthetic_key::iterator_size=
+    ALIGN_SIZE(sizeof(Dep_module_synthetic_key::Value_iter));
+
+
 /*
   A module that represents outer join that we're trying to eliminate. If we 
   manage to declare this module to be bound, then outer join can be eliminated.
@@ -508,12 +571,15 @@ public:
   */
   MY_BITMAP expr_deps;
   
-  Dep_value_table *create_table_value(TABLE *table);
+  Dep_value_table *create_table_value(TABLE_LIST *table_list);
   Dep_value_field *get_field_value(Field *field);
 
 #ifndef DBUG_OFF
   void dbug_print_deps();
 #endif 
+
+private:
+  int find_field_in_list(List<Item> &fields_list, Item *field);
 };
 
 
@@ -851,7 +917,7 @@ bool check_func_dependency(JOIN *join,
   /* Create Dep_value_table objects for all tables we're trying to eliminate */
   if (oj_tbl)
   {
-    if (!dac.create_table_value(oj_tbl->table))
+    if (!dac.create_table_value(oj_tbl))
       return FALSE; /* purecov: inspected */
   }
   else
@@ -861,7 +927,7 @@ bool check_func_dependency(JOIN *join,
     {
       if (tbl->table && (tbl->table->map & dep_tables))
       {
-        if (!dac.create_table_value(tbl->table))
+        if (!dac.create_table_value(tbl))
           return FALSE; /* purecov: inspected */
       }
     }
@@ -1577,23 +1643,26 @@ void add_module_expr(Dep_analysis_context *ctx, Dep_module_expr **eq_mod,
   DESCRIPTION
     Create a Dep_value_table object for the given table. Also create
     Dep_module_key objects for all unique keys in the table.
+    Create a synthetic unique key if this table is derived and has
+    a GROUP BY expression.
 
   RETURN
     Created table value object
     NULL if out of memory
 */
 
-Dep_value_table *Dep_analysis_context::create_table_value(TABLE *table)
+Dep_value_table *
+Dep_analysis_context::create_table_value(TABLE_LIST *table_list)
 {
   Dep_value_table *tbl_dep;
-  if (!(tbl_dep= new Dep_value_table(table)))
+  if (!(tbl_dep= new Dep_value_table(table_list->table)))
     return NULL; /* purecov: inspected */
 
   Dep_module_key **key_list= &(tbl_dep->keys);
   /* Add dependencies for unique keys */
-  for (uint i=0; i < table->s->keys; i++)
+  for (uint i= 0; i < table_list->table->s->keys; i++)
   {
-    KEY *key= table->key_info + i; 
+    KEY *key= table_list->table->key_info + i; 
     if (key->flags & HA_NOSAME)
     {
       Dep_module_key *key_dep;
@@ -1603,7 +1672,73 @@ Dep_value_table *Dep_analysis_context::create_table_value(TABLE *table)
       key_list= &(key_dep->next_table_key);
     }
   }
-  return table_deps[table->tablenr]= tbl_dep;
+
+  auto select_unit= table_list->get_unit();
+  SELECT_LEX *first_select= nullptr;
+  if (select_unit)
+  {
+    first_select= select_unit->first_select();
+
+    /* Exclude UNION (ALL) queries from consideration by checking
+    next_select() == nullptr */
+    if (unlikely(select_unit->first_select()->next_select()))
+      first_select= nullptr;
+  }
+
+  /* GROUP BY expression is considered as a synthetic "unique key"
+    for the derived table. Add this key as a dependency */
+  if (first_select && first_select->group_list.elements > 0)
+  {
+    /* Make sure GROUP BY elements contain only fields
+     and no functions or other expressions */
+    bool valid= TRUE;
+    std::vector<int> exposed_fields_indexes;
+    for (auto cur_group= first_select->group_list.first;
+         cur_group;
+         cur_group= cur_group->next)
+    {
+      auto elem= *(cur_group->item);
+      if (elem->type() != Item::FIELD_ITEM)
+      {
+        valid= FALSE;
+        break;
+      }
+      auto field_idx= find_field_in_list(first_select->join->fields_list, elem);
+      if (field_idx != -1)
+      {
+        /* The field is found in the SELECT list, so it is exposed
+        * outside the derived table */
+        exposed_fields_indexes.push_back(field_idx);
+      }
+    }
+    if (valid)
+    {
+      Dep_module_synthetic_key *synth_key;
+      if (!(synth_key= new Dep_module_synthetic_key(
+                tbl_dep, std::move(exposed_fields_indexes))))
+        return NULL;
+      tbl_dep->synthetic_key= synth_key;
+    }
+  }
+  return table_deps[table_list->table->tablenr]= tbl_dep;
+}
+
+
+int Dep_analysis_context::find_field_in_list(List<Item> &fields_list,
+                                             Item *field)
+{
+  List_iterator<Item> it(fields_list);
+  int field_idx= 0;
+  while (auto next_field= it.peek())
+  {
+    if (next_field->eq(field, false))
+    {
+      return field_idx;
+    }
+    field_idx++;
+    it++;
+  }
+  return -1 /*not found*/;
 }
 
 
@@ -1746,11 +1881,28 @@ Dep_value* Dep_module_key::get_next_unbound_value(Dep_analysis_context *dac,
 }
 
 
+char *Dep_module_synthetic_key::init_unbound_values_iter(char *buf)
+{
+  Value_iter *iter= ALIGN_PTR(my_ptrdiff_t(buf), Value_iter);
+  iter->table= table;
+  return (char *) iter;
+}
+
+Dep_value *
+Dep_module_synthetic_key::get_next_unbound_value(Dep_analysis_context *dac,
+                                                  Dep_module::Iterator iter)
+{
+  Dep_value *res= ((Value_iter *) iter)->table;
+  ((Value_iter *) iter)->table= NULL;
+  return res;
+}
+
 Dep_value::Iterator Dep_value_field::init_unbound_modules_iter(char *buf)
 {
   Module_iter *iter= ALIGN_PTR(my_ptrdiff_t(buf), Module_iter);
   iter->key_dep= table->keys;
   iter->equality_no= 0;
+  iter->synth_key_dep= table->synthetic_key;
   return (char*)iter;
 }
 
@@ -1758,7 +1910,8 @@ Dep_value::Iterator Dep_value_field::init_unbound_modules_iter(char *buf)
 void 
 Dep_value_field::make_unbound_modules_iter_skip_keys(Dep_value::Iterator iter)
 {
-  ((Module_iter*)iter)->key_dep= NULL;
+  ((Module_iter *) iter)->key_dep= NULL;
+  ((Module_iter *) iter)->synth_key_dep= NULL;
 }
 
 
@@ -1786,6 +1939,18 @@ Dep_module* Dep_value_field::get_next_unbound_module(Dep_analysis_context *dac,
   }
   else 
     di->key_dep= NULL;
+
+  Dep_module_synthetic_key *synth_key_dep= di->synth_key_dep;
+  if (synth_key_dep && !synth_key_dep->is_applicable() &&
+    std::find(synth_key_dep->derived_table_field_indexes.begin(),
+      synth_key_dep->derived_table_field_indexes.end(),
+      field->field_index) != synth_key_dep->derived_table_field_indexes.end())
+  {
+    di->synth_key_dep= NULL;
+    return synth_key_dep;
+  }
+  else
+    di->synth_key_dep= NULL;
   
   /*
     Then walk through [multi]equalities and find those that
