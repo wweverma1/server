@@ -5234,21 +5234,18 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   init_alloc_root(PSI_INSTRUMENT_ME, &tmp_mem_root, SHOW_ALLOC_BLOCK_SIZE,
                   SHOW_ALLOC_BLOCK_SIZE, MY_THREAD_SPECIFIC);
 
-  /* Handling session temporary tables from the backup state*/
-  if (schema_table_idx == SCH_TABLES)
+  /* Handling session temporary tables from the backup state */
+  if (schema_table_idx == SCH_TABLES && open_tables_state_backup.temporary_tables)
   {
-    if (open_tables_state_backup.temporary_tables)
+    All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
+    TMP_TABLE_SHARE *share_temp;
+    while ((share_temp= it++))
     {
-      All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
-      TMP_TABLE_SHARE *share_temp;
-      while ((share_temp= it++))
+      All_share_tables_list::Iterator it2(share_temp->all_tmp_tables);
+      while (TABLE *tmp_tbl= it2++)
       {
-        All_share_tables_list::Iterator it2(share_temp->all_tmp_tables);
-        while (TABLE *tmp_tbl= it2++)
-        {
-          if (IS_USER_TEMP_TABLE(share_temp))
-            process_i_s_table_temporary_tables(thd, table, tmp_tbl);
-        }
+        if (IS_USER_TEMP_TABLE(share_temp))
+          process_i_s_table_temporary_tables(thd, table, tmp_tbl);
       }
     }
   }
@@ -5805,7 +5802,6 @@ err:
 
 /**
  @brief           Fill IS.table with temporary tables
- @details         The function does...
  @param[in]       table                I_S table (TABLE)
  @param[in]       db_name              db name of temporary table
  @param[in]       table_name           table name of temporary table
