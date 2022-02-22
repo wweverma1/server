@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -657,20 +657,6 @@ err_exit:
 # define row_log_table_close(log, b, size, avail)	\
 	row_log_table_close_func(index, size, avail)
 #endif /* UNIV_DEBUG */
-
-/** Check whether a virtual column is indexed in the new table being
-created during alter table
-@param[in]	index	cluster index
-@param[in]	v_no	virtual column number
-@return true if it is indexed, else false */
-bool
-row_log_col_is_indexed(
-	const dict_index_t*	index,
-	ulint			v_no)
-{
-	return(dict_table_get_nth_v_col(
-		index->online_log->table, v_no)->m_col.ord_part);
-}
 
 /******************************************************//**
 Logs a delete operation to a table that is being rebuilt.
