@@ -53,7 +53,6 @@ INSERT INTO t1 SET a=NULL;
 ROLLBACK;
 set DEBUG_SYNC='now SIGNAL dml_done';
 connection default;
---error ER_INVALID_USE_OF_NULL
 reap;
 DROP TABLE t1;
 disconnect con1;

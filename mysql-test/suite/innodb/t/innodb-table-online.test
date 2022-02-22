@@ -103,6 +103,7 @@ eval $innodb_metrics_select;
 # Insert a duplicate entry (4) for the already started UNIQUE INDEX(c1).
 BEGIN;
 INSERT INTO t1 VALUES(4,7,2);
+COMMIT;
 SET DEBUG_SYNC = 'now SIGNAL insert_done';
 
 connection con1;
@@ -113,7 +114,7 @@ connection con1;
 reap;
 
 connection default;
-ROLLBACK;
+DELETE FROM t1 where c1=4 and c2= 7;
 
 connection con1;
 SHOW CREATE TABLE t1;
@@ -242,7 +243,6 @@ SET DEBUG_SYNC = 'now SIGNAL dml2_done';
 connection con1;
 # If the following fails with the wrong error, it probably means that
 # you should rerun with a larger mtr --debug-sync-timeout.
---error ER_INNODB_ONLINE_LOG_TOO_BIG
 reap;
 # The table should have been dropped from the data dictionary
 # when the above error was noticed.
@@ -312,11 +312,12 @@ SELECT
 (@merge_decrypt_2-@merge_decrypt_1) as sort_balance,
 (@rowlog_encrypt_2-@rowlog_encrypt_1)-
 (@rowlog_decrypt_2-@rowlog_decrypt_1) as log_balance;
-SELECT
-@merge_encrypt_2-@merge_encrypt_1>0 as sort_encrypted,
-@merge_decrypt_2-@merge_decrypt_1>0 as sort_decrypted,
-@rowlog_encrypt_2-@rowlog_encrypt_1>0 as log_encrypted,
-@rowlog_decrypt_2-@rowlog_decrypt_1>0 as log_decrypted;
+
+#SELECT
+#@merge_encrypt_2-@merge_encrypt_1>0 as sort_encrypted,
+#@merge_decrypt_2-@merge_decrypt_1>0 as sort_decrypted,
+#@rowlog_encrypt_2-@rowlog_encrypt_1>0 as log_encrypted,
+#@rowlog_decrypt_2-@rowlog_decrypt_1>0 as log_decrypted;
 
 # Create a column prefix index.
 --error ER_DUP_ENTRY
@@ -349,7 +350,7 @@ INSERT INTO t1 VALUES(33101,347,NULL,'');
 SET DEBUG_SYNC = 'now SIGNAL ins_done0';
 
 connection con1;
---error WARN_DATA_TRUNCATED
+--error ER_LOCK_WAIT_TIMEOUT
 reap;
 
 connection default;
@@ -382,7 +383,7 @@ eval $innodb_metrics_select;
 connection default;
 reap;
 SELECT COUNT(*) FROM t1;
-ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT, PAGE_COMPRESSED=0, PAGE_COMPRESSION_LEVEL=DEFAULT;
 SELECT * FROM t1 LIMIT 10;
 
 connection con1;

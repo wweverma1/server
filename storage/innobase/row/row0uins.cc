@@ -100,8 +100,7 @@ restart:
 	purged. However, we can log the removal out of sync with the
 	B-tree modification. */
 	ut_a(node->pcur.restore_position(
-	      online ? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-	      : (node->rec_type == TRX_UNDO_INSERT_METADATA)
+	      (node->rec_type == TRX_UNDO_INSERT_METADATA)
 		? BTR_MODIFY_TREE
 		: BTR_MODIFY_LEAF,
 	      &mtr) == btr_pcur_t::SAME_ALL);
@@ -189,9 +188,8 @@ restart:
 		}
 
 		mtr.start();
-		success = btr_pcur_restore_position(
-			BTR_MODIFY_LEAF, &node->pcur, &mtr);
-		ut_a(success);
+		ut_a(node->pcur.restore_position(
+			BTR_MODIFY_LEAF, &mtr) == btr_pcur_t::SAME_ALL);
 	}
 
 	if (btr_cur_optimistic_delete(&node->pcur.btr_cur, 0, &mtr)) {
@@ -519,7 +517,7 @@ row_undo_ins_remove_sec_rec(
 	while (index != NULL) {
 		dtuple_t*	entry;
 
-		if (index->type & DICT_FTS) {
+		if (index->type & DICT_FTS || !index->is_committed()) {
 			dict_table_next_uncorrupted_index(index);
 			continue;
 		}

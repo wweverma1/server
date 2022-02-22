@@ -2825,7 +2825,8 @@ row_upd(
 			break;
 		}
 
-		if (node->index->type != DICT_FTS) {
+		if (node->index->type != DICT_FTS
+		    && node->index->is_committed()) {
 			err = row_upd_sec_step(node, thr);
 
 			if (err != DB_SUCCESS) {

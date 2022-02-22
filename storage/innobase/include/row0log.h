@@ -32,6 +32,7 @@ Created 2011-05-26 Marko Makela
 #include "rem0types.h"
 #include "dict0dict.h"
 #include "trx0types.h"
+#include "trx0undo.h"
 
 class ut_stage_alter_t;
 
@@ -238,4 +239,26 @@ of an ALTER TABLE for this index.
 ulint
 row_log_estimate_work(
 	const dict_index_t*	index);
+
 #endif /* HAVE_PSI_STAGE_INTERFACE */
+
+/** Handle the insert undo log and apply it on online indexes
+@param	tuple		row reference from undo log record
+@param	rec_info	undo log record info
+@param	clust_index	clustered index
+@param	heap		memory heap */
+void row_log_insert_handle(const dtuple_t *tuple,
+                           trx_undo_rec_info *rec_info,
+                           dict_index_t *clust_index,
+                           mem_heap_t *heap);
+
+/** Handle the update, delete undo log and apply it on online
+indexes
+@param	tuple		row reference from undo log record
+@param	rec_info	undo log record info
+@param	clust_index	clustered index
+@param	heap		memory heap */
+void row_log_update_handle(const dtuple_t *tuple,
+                           trx_undo_rec_info *rec_info,
+                           dict_index_t *clust_index,
+                           mem_heap_t *heap);

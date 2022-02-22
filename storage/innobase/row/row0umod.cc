@@ -856,7 +856,7 @@ row_undo_mod_upd_del_sec(
 		dict_index_t*	index	= node->index;
 		dtuple_t*	entry;
 
-		if (index->type & DICT_FTS) {
+		if (index->type & DICT_FTS || !index->is_committed()) {
 			dict_table_next_uncorrupted_index(node->index);
 			continue;
 		}
@@ -922,7 +922,7 @@ row_undo_mod_del_mark_sec(
 		dict_index_t*	index	= node->index;
 		dtuple_t*	entry;
 
-		if (index->type == DICT_FTS) {
+		if (index->type == DICT_FTS || !index->is_committed()) {
 			dict_table_next_uncorrupted_index(node->index);
 			continue;
 		}
@@ -992,6 +992,12 @@ row_undo_mod_upd_exist_sec(
 
 
 	while (node->index != NULL) {
+
+		if (!node->index->is_committed()) {
+			dict_table_next_uncorrupted_index(node->index);
+			continue;
+		}
+
 		dict_index_t*	index	= node->index;
 		dtuple_t*	entry;
 

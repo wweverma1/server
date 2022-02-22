@@ -133,6 +133,8 @@ trx_init(
 
 	trx->bulk_insert = false;
 
+	trx->apply_online_log = false;
+
 	ut_d(trx->start_file = 0);
 
 	ut_d(trx->start_line = 0);
@@ -1176,21 +1178,15 @@ inline void trx_t::commit_tables()
 {
   if (undo_no && !mod_tables.empty())
   {
-    bool apply= !rsegs.m_redo.rseg;
     const trx_id_t max_trx_id= trx_sys.get_max_trx_id();
     const auto now= start_time;
 
     for (const auto &p : mod_tables)
     {
       dict_table_t *table= p.first;
-      if (!apply && table->is_active_ddl())
-        apply= true;
       table->update_time= now;
       table->query_cache_inv_trx_id= max_trx_id;
     }
-
-    if (UNIV_UNLIKELY(apply && rsegs.m_redo.rseg))
-      apply_log();
   }
 }
 
@@ -1427,6 +1423,7 @@ TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 
   if (mtr)
   {
+    apply_log();
     trx_write_serialisation_history(this, mtr);
 
     /* The following call commits the mini-transaction, making the

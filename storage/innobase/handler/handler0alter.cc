@@ -10696,6 +10696,54 @@ alter_stats_rebuild(
 	DBUG_VOID_RETURN;
 }
 
+/** Handle the apply log failure for table rebuild, index build
+operation.
+@param	ctx		Inplace alter context
+@param	ha_alter_info	handler alter inplace info
+@param	altered_table	MySQL table that is being altered
+@param	error		error code */
+static void alter_log_handle_failure(
+	ha_innobase_inplace_ctx*	ctx,
+	Alter_inplace_info*		ha_alter_info,
+	TABLE*				altered_table,
+	dberr_t				error)
+{
+
+	ulint	err_key = thr_get_trx(ctx->thr)->error_key_num;
+	dict_table_t*	rebuilt_table = ctx->new_table;
+
+	switch (error) {
+		KEY*	dup_key;
+	case DB_SUCCESS:
+		break;
+	case DB_DUPLICATE_KEY:
+		if (err_key == ULINT_UNDEFINED) {
+			/* This should be the hidden index on
+			   FTS_DOC_ID. */
+			dup_key = NULL;
+		} else {
+			DBUG_ASSERT(err_key < ha_alter_info->key_count);
+			dup_key = &ha_alter_info->key_info_buffer[err_key];
+		}
+
+		print_keydup_error(altered_table, dup_key, MYF(0));
+		break;
+	case DB_ONLINE_LOG_TOO_BIG:
+		my_error(ER_INNODB_ONLINE_LOG_TOO_BIG, MYF(0),
+			 get_error_key_name(err_key, ha_alter_info,
+					    rebuilt_table));
+		break;
+	case DB_INDEX_CORRUPT:
+		my_error(ER_INDEX_CORRUPT, MYF(0),
+			 get_error_key_name(err_key, ha_alter_info,
+					    rebuilt_table));
+		break;
+	default:
+		my_error_innodb(error, ctx->old_table->name.m_name,
+				ctx->old_table->flags);
+	}
+}
+
 /** Apply the log for the table rebuild operation.
 @param[in]	ctx		Inplace Alter table context
 @param[in]	altered_table	MySQL table that is being altered
@@ -10715,7 +10763,6 @@ static bool alter_rebuild_apply_log(
 	dropped were not created in the copy of the table. Apply any
 	last bit of the rebuild log and then rename the tables. */
 	dict_table_t*	user_table = ctx->old_table;
-	dict_table_t*	rebuilt_table = ctx->new_table;
 
 	DEBUG_SYNC_C("row_log_table_apply2_before");
 
@@ -10744,41 +10791,12 @@ static bool alter_rebuild_apply_log(
 		ctx->new_table->vc_templ = NULL;
 	}
 
-	ulint	err_key = thr_get_trx(ctx->thr)->error_key_num;
-
-	switch (error) {
-		KEY*	dup_key;
-	case DB_SUCCESS:
-		break;
-	case DB_DUPLICATE_KEY:
-		if (err_key == ULINT_UNDEFINED) {
-			/* This should be the hidden index on
-			   FTS_DOC_ID. */
-			dup_key = NULL;
-		} else {
-			DBUG_ASSERT(err_key < ha_alter_info->key_count);
-			dup_key = &ha_alter_info->key_info_buffer[err_key];
-		}
-
-		print_keydup_error(altered_table, dup_key, MYF(0));
-		DBUG_RETURN(true);
-	case DB_ONLINE_LOG_TOO_BIG:
-		my_error(ER_INNODB_ONLINE_LOG_TOO_BIG, MYF(0),
-			 get_error_key_name(err_key, ha_alter_info,
-					    rebuilt_table));
-		DBUG_RETURN(true);
-	case DB_INDEX_CORRUPT:
-		my_error(ER_INDEX_CORRUPT, MYF(0),
-			 get_error_key_name(err_key, ha_alter_info,
-					    rebuilt_table));
-		DBUG_RETURN(true);
-	default:
-		my_error_innodb(error, ctx->old_table->name.m_name,
-				user_table->flags);
-		DBUG_RETURN(true);
+	if (error == DB_SUCCESS) {
+		DBUG_RETURN(false);
 	}
 
-	DBUG_RETURN(false);
+	alter_log_handle_failure(ctx, ha_alter_info, altered_table, error);
+	DBUG_RETURN(true);
 }
 
 /** Commit or rollback the changes made during
@@ -10965,6 +10983,44 @@ lock_fail:
 					purge_sys.resume_FTS();
 				}
 				DBUG_RETURN(true);
+			}
+		}
+	} else {
+		for (inplace_alter_handler_ctx** pctx= ctx_array; *pctx;
+		     pctx++) {
+			auto ctx= static_cast<ha_innobase_inplace_ctx*>(*pctx);
+
+			if (!ctx->online || !ctx->old_table->space
+			    || !ctx->old_table->is_readable()) {
+				continue;
+			}
+
+			for (ulint i = 0; i < ctx->num_to_add_index; i++) {
+				dict_index_t *index= ctx->add_index[i];
+
+				if (index->type & (DICT_FTS | DICT_SPATIAL))
+                                  continue;
+
+				index->lock.x_lock(SRW_LOCK_CALL);
+				ut_ad(index->online_log);
+
+				dberr_t error = row_log_apply(
+					m_prebuilt->trx, index, altered_table,
+					ctx->m_stage);
+
+				if (error != DB_SUCCESS) {
+					alter_log_handle_failure(
+						ctx, ha_alter_info,
+						altered_table, error);
+					index->lock.x_unlock();
+					DBUG_RETURN(true);
+				}
+
+				row_log_free(index->online_log);
+				index->online_log= nullptr;
+				dict_index_set_online_status(
+					index, ONLINE_INDEX_COMPLETE);
+				index->lock.x_unlock();
 			}
 		}
 	}

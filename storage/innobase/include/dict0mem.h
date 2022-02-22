@@ -2366,13 +2366,12 @@ public:
     const dict_index_t *i= UT_LIST_GET_FIRST(indexes);
     if (UNIV_LIKELY_NULL(i->online_log))
       return true;
-    // FIXME: add a flag
-    // (or a dummy online_log pointer value, say, i->online_log == this)
-    // to denote "online ADD INDEX is in progress", to avoid the following loop
-    // on every trx_t::commit()
     while ((i= UT_LIST_GET_NEXT(indexes, i)) != nullptr)
-      if (!i->is_committed())
+    {
+      if (i->online_log
+          && i->online_status <= ONLINE_INDEX_CREATION)
         return true;
+    }
     return false;
   }
 

@@ -885,6 +885,8 @@ public:
 					error, or empty. */
 	rw_trx_hash_element_t *rw_trx_hash_element;
 	LF_PINS *rw_trx_hash_pins;
+
+	bool		apply_online_log= false;
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */
@@ -1065,6 +1067,17 @@ public:
       if (t.second.is_bulk_insert())
         return true;
     return false;
+  }
+
+  /** Fetch the list of tables which does online ddl */
+  void get_online_log_tables(
+	std::map<table_id_t, dict_table_t*> &ddl_tables) const
+  {
+    for (auto& t : mod_tables)
+    {
+      if (t.first->is_active_ddl())
+        ddl_tables[t.first->id]= t.first;
+    }
   }
 
 private:

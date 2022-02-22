@@ -2868,10 +2868,6 @@ row_ins_sec_index_entry_low(
 		}
 	}
 
-#ifdef ENABLED_DEBUG_SYNC
-        if (!index->is_committed()) DEBUG_SYNC_C("row_ins_sec_index_enter");
-#endif
-
 	/* Note that we use PAGE_CUR_LE as the search mode, because then
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
@@ -3583,7 +3579,8 @@ row_ins(
 		   FTS_DOC_ID for history is enough.
 		*/
 		const unsigned type = index->type;
-		if (index->type & DICT_FTS) {
+		if (index->type & DICT_FTS
+		    || !index->is_committed()) {
 		} else if (!(type & DICT_UNIQUE) || index->n_uniq > 1
 			   || !node->vers_history_row()) {
 
