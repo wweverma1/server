@@ -88,11 +88,17 @@ void Apc_target::dequeue_request(Call_request *qe)
 #ifdef HAVE_PSI_INTERFACE
 
 /* One key for all conds */
-PSI_cond_key key_show_explain_request_COND;
+PSI_cond_key key_APC_request_COND;
+PSI_cond_key key_APC_request_LOCK;
 
-static PSI_cond_info show_explain_psi_conds[]=
+static PSI_cond_info apc_request_psi_conds[]=
 {
-  { &key_show_explain_request_COND, "show_explain", 0 /* not using PSI_FLAG_GLOBAL*/ }
+  { &key_APC_request_COND, "apc_request", 0 /* not using PSI_FLAG_GLOBAL*/ }
+};
+
+static PSI_mutex_info apc_request_psi_locks[]=
+{
+  { &key_APC_request_LOCK, "apc_request", 0 }
 };
 
 void init_show_explain_psi_keys(void)
@@ -100,8 +106,11 @@ void init_show_explain_psi_keys(void)
   if (PSI_server == NULL)
     return;
 
-  PSI_server->register_cond("sql", show_explain_psi_conds, 
-                            array_elements(show_explain_psi_conds));
+  PSI_server->register_cond("sql", apc_request_psi_conds,
+                            array_elements(apc_request_psi_conds));
+  PSI_server->register_mutex("sql", apc_request_psi_locks,
+                            array_elements(apc_request_psi_locks));
+
 }
 #endif
 
@@ -115,14 +124,18 @@ int Apc_target::wait_for_completion(THD *caller_thd, Call_request *apc_request,
   int res = 1;
   int wait_res= 0;
   PSI_stage_info old_stage;
-  caller_thd->ENTER_COND(&apc_request->COND_request, LOCK_thd_kill_ptr,
+
+  mysql_mutex_lock(&apc_request->LOCK_request);
+  mysql_mutex_unlock(LOCK_thd_kill_ptr);
+
+  caller_thd->ENTER_COND(&apc_request->COND_request, &apc_request->LOCK_request,
                          &stage_show_explain, &old_stage);
   /* todo: how about processing other errors here? */
   while (!apc_request->processed && (wait_res != ETIMEDOUT))
   {
     /* We own LOCK_thd_kill_ptr */
     wait_res= mysql_cond_timedwait(&apc_request->COND_request,
-                                   LOCK_thd_kill_ptr, &abstime);
+                                   &apc_request->LOCK_request, &abstime);
     if (caller_thd->killed)
       break;
   }
@@ -151,6 +164,7 @@ int Apc_target::wait_for_completion(THD *caller_thd, Call_request *apc_request,
 
   /* Destroy all APC request data */
   mysql_cond_destroy(&apc_request->COND_request);
+  mysql_mutex_destroy(&apc_request->LOCK_request);
   return res;
 }
 
@@ -159,8 +173,8 @@ void Apc_target::enqueue_request(Call_request *request_buff, Apc_call *call)
 {
   request_buff->call= call;
   request_buff->processed= FALSE;
-  mysql_cond_init(key_show_explain_request_COND, &request_buff->COND_request,
-                  NULL);
+  mysql_cond_init(key_APC_request_COND, &request_buff->COND_request, NULL);
+  mysql_mutex_init(key_APC_request_LOCK, &request_buff->LOCK_request, NULL);
   enqueue_request(request_buff);
   request_buff->what="enqueued by make_apc_call";
 }
@@ -220,10 +234,14 @@ void Apc_target::process_apc_requests(bool lock)
     */
     request->what="dequeued by process_apc_requests";
     dequeue_request(request);
-    request->processed= TRUE;
 
+    mysql_mutex_lock(&request->LOCK_request);
+    request->processed= TRUE;
     request->call->call_in_target_thread();
+
     mysql_cond_signal(&request->COND_request);
+    mysql_mutex_unlock(&request->LOCK_request);
+
     mysql_mutex_unlock(LOCK_thd_kill_ptr);
     mysql_mutex_lock(LOCK_thd_kill_ptr);
     request->what="func called by process_apc_requests";

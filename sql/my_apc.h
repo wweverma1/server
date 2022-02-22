@@ -140,6 +140,7 @@ public:
 
     /* Condition that will be signalled when the request has been served */
     mysql_cond_t COND_request;
+    mysql_mutex_t LOCK_request;
     
     /* Double linked-list linkage */
     Call_request *next;
