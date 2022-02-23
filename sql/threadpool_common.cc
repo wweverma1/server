@@ -26,6 +26,7 @@
 #include <sql_class.h>
 #include <sql_parse.h>
 #include "threadpool_generic.h"
+#include <my_global.h>
 
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
@@ -229,6 +230,17 @@ retry:
   thd->apc_target.process_apc_requests(false);
 
   int error= c->start_io();
+
+  /*
+    Generally, it is not safe to refer to any resources under thd after
+    start_io(), but it is ok to unlock LOCK_thd_kill, if we acquired it before
+    the call.
+
+    The possible race condition can be with lock destruction in ~THD.
+    It is not the case for unlocking LOCK_thd_kill, because it is specifically
+    reacquired and then released right before the destruction, thus,
+    waiting for a holder to release the lock.
+   */
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
 
   return error == 0;
@@ -250,8 +262,8 @@ void tp_callback(TP_connection *c)
       threadpool_remove_connection(thd);
     }
     delete c;
-    worker_context.restore();
   }
+  worker_context.restore();
 }
 
 
@@ -380,7 +392,12 @@ static dispatch_command_return threadpool_process_request(THD *thd)
 
   thread_attach(thd);
   if(thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
+  {
+    if (unlikely(thd->async_state.m_command == COM_SLEEP))
+      return DISPATCH_COMMAND_SUCCESS; // Special case for thread pool APC
+
     goto resume;
+  }
 
   thd->apc_target.process_apc_requests();
 
@@ -592,8 +609,6 @@ static void tp_resume(THD* thd)
   pool->resume(c);
 }
 
-int io_poll_disassociate_fd(TP_file_handle pollfd, TP_file_handle fd);
-
 static void tp_notify_apc(THD *thd)
 {
   mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
@@ -602,7 +617,28 @@ static void tp_notify_apc(THD *thd)
   bool stopped= c->stop_io();
   if (stopped)
   {
-    pool->resume(c); // add c to the task queue
+    /* Set custom async_state to handle later in threadpool_process_request().
+       This will avoid possible side effects of dry-running do_command() */
+    DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::NONE);
+    thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
+    thd->async_state.m_command= COM_SLEEP;
+
+    /* Add c to the task queue */
+    pool->resume(c);
+  }
+  else
+  {
+    /*
+      Do nothing.
+
+      Since we didn't stop the io listening succesfully, it wasn't in a
+      listening poll (i.e. epoll/kqueue/etc). THD is running in the worker
+      now. It didn't return to the poll yet (i.e. c->start_io()), because now
+      it does it under LOCK_thd_kill.
+
+      It checks pending APC requests under the same lock, so it's guaranteed
+      that our request will be processed before sleep.
+     */
   }
 }
 
