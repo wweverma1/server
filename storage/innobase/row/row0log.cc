@@ -4325,6 +4325,10 @@ void row_log_update_handle(const dtuple_t *tuple,
                               offsets, heap, &prev_version, NULL,
                               NULL, 0, rec_info);
 
+  offsets= rec_get_offsets(prev_version, clust_index, offsets,
+                           clust_index->n_core_fields,
+                           ULINT_UNDEFINED, &heap);
+
   dict_index_t *index= dict_table_get_next_index(clust_index);
   while (index)
   {
