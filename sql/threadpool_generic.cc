@@ -1522,7 +1522,7 @@ int TP_connection_generic::start_io()
 }
 
 
-bool TP_connection_generic::stop_io()
+int TP_connection_generic::stop_io()
 {
   // Hopefully, all POSIX implementations return ENOENT for the case in question
   int ret = io_poll_disassociate_fd(thread_group->pollfd,fd);
@@ -1534,9 +1534,10 @@ bool TP_connection_generic::stop_io()
     // together with io_poll_associate_fd/io_poll_disassociate_fd pair
     DBUG_ASSERT(bound_to_poll_descriptor);
     bound_to_poll_descriptor= false;
+    return 0;
   }
 
-  return stopped;
+  return ret == 0 ? 1 : -1;
 }
 
 

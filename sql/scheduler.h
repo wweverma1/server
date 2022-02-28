@@ -42,7 +42,7 @@ struct scheduler_functions
   void (*end)(void);
   /** resume previous unfinished command (threadpool only)*/
   void (*thd_resume)(THD* thd);
-  void (*notify_apc)(THD *thd);
+  bool (*notify_apc)(THD *thd);
 };
 
 

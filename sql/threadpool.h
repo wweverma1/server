@@ -117,7 +117,7 @@ struct TP_connection
     @return true, if waiting was set
             false, otherwise
    */
-  virtual bool stop_io() = 0;
+  virtual int stop_io() = 0;
 
   virtual void wait_begin(int type)= 0;
   virtual void wait_end() = 0;

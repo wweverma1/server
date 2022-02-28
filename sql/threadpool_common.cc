@@ -611,7 +611,7 @@ static void tp_resume(THD* thd)
   pool->resume(c);
 }
 
-static void tp_notify_apc(THD *thd)
+static bool tp_notify_apc(THD *thd)
 {
   mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
   TP_connection* c = get_TP_connection(thd);
@@ -645,8 +645,8 @@ static void tp_notify_apc(THD *thd)
         // We are either before apc requests checked or processed, or after APC
         // processed. We can't distinguish these states, so just flush the pool
         // and then retry if failed.
-        bool stopped= c->stop_io();
-        if (stopped)
+        int status= c->stop_io();
+        if (likely(status == 0))
         {
           /* Set custom async_state to handle later in threadpool_process_request().
              This will avoid possible side effects of dry-running do_command() */
@@ -658,7 +658,12 @@ static void tp_notify_apc(THD *thd)
           pool->resume(c);
           break;
         }
-        else {
+        else if (unlikely(status < 0))
+        {
+          return false;
+        }
+        else
+        {
           /*
              If the run is skipped and somebody else took connection out of the
              poll, then we will wait until the epoch change, therefore, will wait
@@ -671,6 +676,7 @@ static void tp_notify_apc(THD *thd)
       }
     }
   }
+  return true;
 }
 
 static scheduler_functions tp_scheduler_functions=
