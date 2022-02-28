@@ -1524,21 +1524,19 @@ int TP_connection_generic::start_io()
 
 bool TP_connection_generic::stop_io()
 {
-  mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
-  if (!bound_to_poll_descriptor)
-    return false;
-
   // Hopefully, all POSIX implementations return ENOENT for the case in question
-  bool ret = io_poll_disassociate_fd(thread_group->pollfd,fd) != ENOENT;
-  if (ret)
+  int ret = io_poll_disassociate_fd(thread_group->pollfd,fd);
+  bool stopped= ret == -1 && errno == ENOENT;
+  if (stopped)
   {
-    // It is supposed that bound_to_poll_descriptor can only change together
-    // with io_poll_associate_fd/io_poll_disassociate_fd pair
+    // We have successfully disassociated fd. bound_to_poll_descriptor now will
+    // not be accessed from another threads. bound_to_poll_descriptor changes
+    // together with io_poll_associate_fd/io_poll_disassociate_fd pair
     DBUG_ASSERT(bound_to_poll_descriptor);
     bound_to_poll_descriptor= false;
   }
 
-  return ret;
+  return stopped;
 }
 
 
