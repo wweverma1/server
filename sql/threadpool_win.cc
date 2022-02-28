@@ -91,6 +91,7 @@ public:
   void set_io_timeout(int sec) override;
   void wait_begin(int type) override;
   void wait_end() override;
+  int cancel_io() final;
 
   ulonglong timeout=ULLONG_MAX;
   OVERLAPPED overlapped{};
@@ -130,6 +131,11 @@ void TP_pool_win::resume(TP_connection* c)
 {
   DBUG_ASSERT(c->state == TP_STATE_RUNNING);
   SubmitThreadpoolWork(((TP_connection_win*)c)->work);
+}
+
+int TP_pool_win::wake(TP_connection *c)
+{
+  return c->wake();
 }
 
 #define CHECK_ALLOC_ERROR(op)                                                 \
@@ -176,6 +182,13 @@ int TP_connection_win::start_io()
     return -1;
   }
   return 0;
+}
+
+int TP_connection_win::cancel_io(TP_connection *c)
+{
+  if (!CancelIoEx(sock.m_handle, &sock.m_overlapped))
+    return GetLastError() == ERROR_NOT_FOUND ? 0 : -1;
+  return 1;
 }
 
 /*
@@ -290,6 +303,15 @@ static VOID CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance,
 
   /* How many bytes were preread into read buffer */
   c->sock.end_read((ULONG)nbytes, io_result);
+
+  if (io_result == ERROR_OPERATION_ABORTED)
+  {
+    /* Set custom async_state to handle later in threadpool_process_request().
+       This will avoid possible side effects of dry-running do_command() */
+    DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::NONE);
+    DBUG_ASSERT(thd->async_state.m_command == COM_SLEEP);
+    thd->async_state.m_state= thd_async_state::enum_async_state::RESUMED;
+  }
 
   /*
     Execute high priority connections immediately.
