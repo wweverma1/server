@@ -40,6 +40,7 @@ public:
     spider_string *str,
     Field *field,
     const uchar *new_ptr,
+    bool is_like,
     CHARSET_INFO *access_charset
   );
   int append_from_with_alias(
