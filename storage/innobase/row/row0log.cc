@@ -4249,10 +4249,11 @@ void row_log_insert_handle(const dtuple_t *tuple,
       if (index->online_log
           && index->online_status <= ONLINE_INDEX_CREATION)
       {
+	row_ext_t *ext;
         dtuple_t *row= row_build(ROW_COPY_POINTERS, clust_index,
                                  match_rec, offsets, index->table,
-				 NULL, NULL, NULL, heap);
-        dtuple_t *entry= row_build_index_entry_low(row, NULL, index,
+				 NULL, NULL, &ext, heap);
+        dtuple_t *entry= row_build_index_entry_low(row, ext, index,
                                                    heap, ROW_BUILD_NORMAL);
 
         row_log_online_op(index, entry, trx_id);
@@ -4309,6 +4310,7 @@ void row_log_update_handle(const dtuple_t *tuple,
   clust_index->lock.s_unlock();
   dtuple_t *row= nullptr;
   trx_id_t trx_id;
+  row_ext_t *new_ext;
   if (is_update)
   {
     ulint len;
@@ -4318,7 +4320,7 @@ void row_log_update_handle(const dtuple_t *tuple,
     ut_ad(len == DATA_TRX_ID_LEN);
     row= row_build(ROW_COPY_POINTERS, clust_index,
                    match_rec, offsets, clust_index->table, NULL, NULL,
-                   NULL, heap);
+                   &new_ext, heap);
   }
 
   trx_undo_prev_version_build(rec, &mtr, match_rec, clust_index,
@@ -4336,17 +4338,18 @@ void row_log_update_handle(const dtuple_t *tuple,
     if (index->online_log
         && index->online_status <= ONLINE_INDEX_CREATION)
     {
+      row_ext_t *old_ext;
       dtuple_t *old_row= row_build(ROW_COPY_POINTERS, clust_index,
                                    prev_version, offsets,
-				   index->table,NULL, NULL, NULL, heap);
+				   index->table, NULL, NULL, &old_ext, heap);
       dtuple_t *old_entry= row_build_index_entry_low(
-            old_row, NULL, index, heap, ROW_BUILD_NORMAL);
+            old_row, old_ext, index, heap, ROW_BUILD_NORMAL);
 
       row_log_online_op(index, old_entry, 0);
       if (is_update)
       {
         dtuple_t *new_entry= row_build_index_entry_low(
-           row, NULL, index, heap, ROW_BUILD_NORMAL);
+           row, new_ext, index, heap, ROW_BUILD_NORMAL);
 	row_log_online_op(index, new_entry, trx_id);
       }
     }
