@@ -399,7 +399,6 @@ ATTRIBUTE_COLD void trx_t::apply_log() const
   {
     trx_undo_rec_t *rec= trx_undo_page_get_first_rec(block, page_id.page_no(),
                                                      undo->hdr_offset);
-    ut_ad(rec);
     while (rec)
     {
       trx_undo_rec_info undo_rec_info(id, block, page_offset(rec));

@@ -4155,7 +4155,7 @@ static rec_t *row_log_vers_undo_match(
   rec_t *prev_version;
   rec_t *version= rec;
   bool match= false;
-  while (!match)
+  while (!match && version != nullptr)
   {
     *offsets= rec_get_offsets(version, index, *offsets,
                               index->n_core_fields, ULINT_UNDEFINED,
@@ -4228,6 +4228,8 @@ void row_log_insert_handle(const dtuple_t *tuple,
   rec_t *match_rec= row_log_undo_vers_record(tuple, clust_index, &rec,
                                              &offsets,
                                              rec_info, &mtr, heap);
+  if (!match_rec)
+    goto func_exit;
   clust_index->lock.s_lock(SRW_LOCK_CALL);
   if (clust_index->online_log
       && clust_index->online_status <= ONLINE_INDEX_CREATION)
@@ -4263,6 +4265,7 @@ void row_log_insert_handle(const dtuple_t *tuple,
       index= dict_table_get_next_index(index);
     }
   }
+func_exit:
   mtr.commit();
 }
 
@@ -4284,6 +4287,8 @@ void row_log_update_handle(const dtuple_t *tuple,
                           tuple, clust_index, &rec, &offsets,
                           rec_info, &mtr, heap);
 
+  if (!match_rec)
+    goto func_exit;
   clust_index->lock.s_lock(SRW_LOCK_CALL);
   if (clust_index->online_log
       && clust_index->online_status <= ONLINE_INDEX_CREATION)
@@ -4303,6 +4308,7 @@ void row_log_update_handle(const dtuple_t *tuple,
       row_log_table_delete(prev_version, clust_index, offsets, nullptr);
     }
     clust_index->lock.s_unlock();
+func_exit:
     mtr.commit();
     return;
   }
@@ -4356,6 +4362,5 @@ void row_log_update_handle(const dtuple_t *tuple,
     index->lock.s_unlock();
     index= dict_table_get_next_index(index);
   }
-
-  mtr.commit();
+  goto func_exit;
 }
