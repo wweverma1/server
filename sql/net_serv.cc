@@ -1002,13 +1002,10 @@ retry:
 	/* First read is done with non blocking mode */
         if ((long) (length= vio_read(net->vio, pos, remain)) <= 0L)
         {
-          if (net->thd)
-          {
-            // reset timeout that could be overriden by signal/winAPC
-            vio_timeout(net->vio, 0, net->read_timeout);
-            THD *thd = (THD*)net->thd;
+          THD *thd = (THD*)net->thd;
+          if (likely(thd) && unlikely(thd->apc_target.have_apc_requests()))
             thd->apc_target.process_apc_requests();
-          }
+
           my_bool interrupted = vio_should_retry(net->vio);
 
 	  DBUG_PRINT("info",("vio_read returned %ld  errno: %d",

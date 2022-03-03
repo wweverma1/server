@@ -1109,19 +1109,6 @@ static int check_connection(THD *thd)
 void setup_connection_thread_globals(THD *thd)
 {
   thd->store_globals();
-#ifndef WIN32
-  struct sigaction act {};
-  act.sa_handler=   [](int) -> void
-  {
-    THD *thd= current_thd;
-    if (thd == NULL || thd->net.vio == NULL)
-      return;
-
-    thd->net.vio->read_timeout = 1;
-  };
-  act.sa_flags= SA_RESTART;
-  sigaction(SIG_APC_NOTIFY, &act, NULL);
-#endif
 }
 
 
@@ -1361,6 +1348,114 @@ bool thd_is_connection_alive(THD *thd)
   return FALSE;
 }
 
+static void self_pipe_write();
+#ifndef _GNU_SOURCE
+class Thread_apc_context;
+static thread_local Thread_apc_context *_THR_APC_CTX= NULL;
+#endif
+
+class Thread_apc_context
+{
+public:
+#ifndef _GNU_SOURCE
+  int self_pipe[2]{};
+#endif
+
+  bool setup_thread_apc()
+  {
+#if !defined(WIN32) && defined(_GNU_SOURCE)
+    struct sigaction act {};
+    act.sa_handler= [](int) -> void {self_pipe_write();};
+    act.sa_flags= 0;
+    int ret= sigaction(SIG_APC_NOTIFY, &act, NULL);
+    DBUG_ASSERT(ret == 0);
+
+    sigset_t signals;
+    ret|= sigemptyset(&signals);
+    DBUG_ASSERT(ret == 0);
+    ret|= sigaddset(&signals, SIG_APC_NOTIFY);
+    DBUG_ASSERT(ret == 0);
+
+    ret|= pthread_sigmask(SIG_BLOCK, &signals, NULL);
+    DBUG_ASSERT(ret == 0);
+#elif !defined(WIN32)
+    // Self-pipe trick. Create a new pipe and store it thread-locally
+    // It can be accessed from Vio later. See also vio_io_wait()
+    int ret= pipe(self_pipe);
+
+    struct sigaction act {};
+    act.sa_handler= [](int) -> void { self_pipe_write(); };
+    act.sa_flags= 0;
+    ret|= sigaction(SIG_APC_NOTIFY, &act, NULL);
+#else
+    // Self-pipe trick for windows. Create a new pipe and store it thread-locally
+    // One can request APC that writes into this pipe to provoke guaranteed
+    // connection wakeup. It is used in vio_io_wait() on the other end.
+
+    HANDLE pipeIn, pipeOut;
+    ret= !CreatePipe(&pipeIn, &pipeOut, NULL, 32);
+    self_pipe[0]= _open_osfhandle((intptr_t)pipeIn, O_RDONLY|_O_BINARY);
+    self_pipe[1]= _open_osfhandle((intptr_t)pipeOut, _O_BINARY);
+#endif
+    return ret == 0;
+  }
+  bool inited;
+  Thread_apc_context()
+  {
+    inited = setup_thread_apc();
+#ifndef _GNU_SOURCE
+    if (inited)
+      _THR_APC_CTX= this;
+#endif
+  }
+#ifndef _GNU_SOURCE
+  ~Thread_apc_context()
+  {
+    _THR_APC_CTX= NULL;
+    close(self_pipe[0]);
+    close(self_pipe[1]);
+  }
+#endif
+};
+
+#ifdef _GNU_SOURCE
+static void self_pipe_write()
+{
+  // No self-pipe is actually used. Instead, ppoll is used to wake up on signal.
+  printf("Failed to initialize BCM2835 GPIO library.\n");
+
+}
+#else
+
+int threadlocal_get_self_pipe()
+{
+  return _THR_APC_CTX ? _THR_APC_CTX->self_pipe[0] : 0;
+}
+
+static void self_pipe_write()
+{
+  DBUG_ASSERT(_THR_APC_CTX);
+  int buf = 0;
+  write(_THR_APC_CTX->self_pipe[1], &buf, sizeof buf);
+}
+#endif
+
+bool thread_scheduler_notify_apc(THD *thd)
+{
+#ifdef WIN32
+  HANDLE hthread= OpenThread(THREAD_ALL_ACCESS, FALSE,
+                             thd->mysys_var->pthread_self);
+  if (hthread == NULL)
+    return false;
+  auto status= QueueUserAPC2(
+      (ULONG_PTR param)[]{ self_pipe_write(); },
+      hthread, (ULONG_PTR)thd,
+      QUEUE_USER_APC_FLAGS_SPECIAL_USER_APC);
+  return status != 0;
+#else
+  return pthread_kill(thd->mysys_var->pthread_self, SIG_APC_NOTIFY) == 0;
+#endif
+}
 
 void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
 {
@@ -1369,6 +1464,14 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
   if (!(thd= connect->create_thd(NULL)))
   {
     connect->close_and_delete();
+    return;
+  }
+
+  Thread_apc_context apc_context;
+  if (!apc_context.inited)
+  {
+    connect->close_and_delete();
+    delete thd;
     return;
   }
 

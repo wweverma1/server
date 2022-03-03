@@ -110,6 +110,8 @@ void post_kill_notification(THD *thd)
 
 #ifndef EMBEDDED_LIBRARY
 
+bool thread_scheduler_notify_apc(THD *thd);
+
 void one_thread_per_connection_scheduler(scheduler_functions *func,
     ulong *arg_max_connections,
     Atomic_counter<uint> *arg_connection_count)

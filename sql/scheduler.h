@@ -98,7 +98,7 @@ void pool_of_threads_scheduler(scheduler_functions* func,
 #endif /*HAVE_POOL_OF_THREADS*/
 
 #ifndef WIN32
-constexpr int SIG_APC_NOTIFY= SIGURG;
+constexpr int SIG_APC_NOTIFY= SIGUSR1;
 #endif
 
 #endif /* SCHEDULER_INCLUDED */

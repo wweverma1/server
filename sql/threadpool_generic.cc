@@ -1540,7 +1540,7 @@ int TP_connection_generic::start_io()
 }
 
 
-int TP_connection_generic::stop_io()
+int TP_connection_generic::cancel_io()
 {
   // Hopefully, all POSIX implementations return ENOENT for the case in question
   int ret = io_poll_disassociate_fd(thread_group->pollfd,fd);
