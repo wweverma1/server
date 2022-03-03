@@ -151,6 +151,9 @@ public:
     Call_request *prev;
     
     const char *what; /* (debug) state of the request */
+
+    Call_request();
+    ~Call_request();
   };
 private:
   void enqueue_request(Call_request *qe);
