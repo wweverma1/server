@@ -394,8 +394,8 @@ int PFS_system_variable_cache::make_call(Request_func func, uint param)
   {
     PFS_system_variable_cache_apc apc_call(this, func, param);
     bool timed_out;
-    Apc_target::Call_request request;
-    m_safe_thd->apc_target.enqueue_request(&request, &apc_call);
+    auto *request= new Apc_target::Call_request;
+    m_safe_thd->apc_target.enqueue_request(request, &apc_call);
     if (!m_safe_thd->apc_target.is_enabled())
     {
       bool success= m_safe_thd->scheduler->notify_apc(m_safe_thd);
@@ -405,8 +405,12 @@ int PFS_system_variable_cache::make_call(Request_func func, uint param)
         return 1;
       }
     }
-    ret= m_safe_thd->apc_target.wait_for_completion(requestor_thd, &request,
+    ret= m_safe_thd->apc_target.wait_for_completion(requestor_thd, request,
                                                     30, &timed_out);
+    if (!timed_out)
+    {
+      delete request;
+    }
   }
   return ret;
 }

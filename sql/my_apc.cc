@@ -147,11 +147,6 @@ int Apc_target::wait_for_completion(THD *caller_thd, Call_request *apc_request,
     if (caller_thd->killed)
       break;
   }
-  /*
-    exit_cond() will call mysql_mutex_unlock(LOCK_thd_kill_ptr) for us:
-  */
-  caller_thd->EXIT_COND(&old_stage);
-
 
   if (!apc_request->processed)
   {
@@ -174,6 +169,10 @@ int Apc_target::wait_for_completion(THD *caller_thd, Call_request *apc_request,
     /* Request was successfully executed and dequeued by the target thread */
     res= 0;
   }
+
+  /* EXIT_COND() will call mysql_mutex_unlock(LOCK_request) for us */
+  caller_thd->EXIT_COND(&old_stage);
+
   return res;
 }
 
