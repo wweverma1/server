@@ -236,7 +236,9 @@ INSERT INTO t1 VALUES ('stop slave and start slave: DML', 7);
 --source include/stop_slave.inc
 
 --let $assert_text= STOP SLAVE should finish quickly, not wait for the ongoing sleep to finish
---let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
+--let $timestamp_after_stop= `SELECT UNIX_TIMESTAMP()`
+--let $assert_cond= $timestamp_after_stop - $timestamp_before_stop < $time1
+#--let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
 --source include/rpl_assert.inc
 
 --let $assert_text= SQL thread position should not increase after STOP SLAVE
@@ -254,7 +256,9 @@ INSERT INTO t1 VALUES ('stop slave and start slave: DML', 7);
 --source include/start_slave.inc
 
 --let $assert_text= START SLAVE should finish quickly
---let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
+--let $timestamp_after_start= `SELECT UNIX_TIMESTAMP()`
+--let $assert_cond= $timestamp_after_start - $timestamp_before_stop < $time1
+#--let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
 --source include/rpl_assert.inc
 
 --let $query_number= 7
@@ -280,7 +284,9 @@ CREATE TABLE t_check_dml_not_executed_prematurely (a INT);
 --source include/stop_slave.inc
 
 --let $assert_text= STOP SLAVE should finish quickly, not wait for the ongoing sleep to finish
---let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
+--let $timestamp_after_stop= `SELECT UNIX_TIMESTAMP()`
+--let $assert_cond= $timestamp_after_stop - $timestamp_before_stop < $time1
+#--let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
 --source include/rpl_assert.inc
 
 --let $assert_text= SQL thread position should not increase after STOP SLAVE
@@ -298,7 +304,9 @@ CREATE TABLE t_check_dml_not_executed_prematurely (a INT);
 --source include/start_slave.inc
 
 --let $assert_text= START SLAVE should finish quickly
---let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
+--let $timestamp_after_start= `SELECT UNIX_TIMESTAMP()`
+--let $assert_cond= $timestamp_after_start - $timestamp_before_stop < $time1
+#--let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
 --source include/rpl_assert.inc
 
 --echo # sleep 1*T
