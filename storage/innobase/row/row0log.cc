@@ -4102,7 +4102,7 @@ void dict_table_t::clear(que_thr_t *thr)
     index->clear(thr);
   }
 }
-
+#if 0
 /** Get the old primary record and construct the old primary key
 @param	rec		clustered index leaf page record
 @param	match_rec	version of clustered index record which matches
@@ -4135,6 +4135,7 @@ static const dtuple_t* row_log_table_get_old_pk(
   return row_log_table_get_pk(prev_version, clust_index, offsets, NULL,
                               &heap);
 }
+#endif
 
 /** Get the version of clustered index record which was modified
 by undo log record
@@ -4223,13 +4224,14 @@ void row_log_insert_handle(const dtuple_t *tuple,
 
   rec_offs_init(offsets_);
   mtr.start();
-
   rec_t *rec;
   rec_t *match_rec= row_log_undo_vers_record(tuple, clust_index, &rec,
                                              &offsets,
                                              rec_info, &mtr, heap);
+  mtr.commit();
   if (!match_rec)
-    goto func_exit;
+    return;
+
   clust_index->lock.s_lock(SRW_LOCK_CALL);
   if (clust_index->online_log
       && clust_index->online_status <= ONLINE_INDEX_CREATION)
@@ -4265,8 +4267,6 @@ void row_log_insert_handle(const dtuple_t *tuple,
       index= dict_table_get_next_index(index);
     }
   }
-func_exit:
-  mtr.commit();
 }
 
 void row_log_update_handle(const dtuple_t *tuple,
@@ -4275,10 +4275,13 @@ void row_log_update_handle(const dtuple_t *tuple,
                            mem_heap_t *heap)
 {
   rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+  rec_offs offsets2_[REC_OFFS_NORMAL_SIZE];
   rec_offs *offsets= offsets_;
+  rec_offs *prev_offsets= offsets2_;
   mtr_t mtr;
 
   rec_offs_init(offsets_);
+  rec_offs_init(offsets2_);
   mtr.start();
   rec_t *rec;
   rec_t *prev_version;
@@ -4286,9 +4289,24 @@ void row_log_update_handle(const dtuple_t *tuple,
   rec_t *match_rec= row_log_undo_vers_record(
                           tuple, clust_index, &rec, &offsets,
                           rec_info, &mtr, heap);
-
   if (!match_rec)
-    goto func_exit;
+  {
+    mtr.commit();
+    return;
+  }
+
+  trx_undo_prev_version_build(rec, &mtr, match_rec, clust_index,
+                              offsets, heap, &prev_version, NULL,
+                              NULL, 0, rec_info);
+
+  prev_offsets= rec_get_offsets(prev_version, clust_index, prev_offsets,
+                                clust_index->n_core_fields,
+                                ULINT_UNDEFINED, &heap);
+
+  offsets= rec_get_offsets(match_rec, clust_index, offsets,
+                           clust_index->n_core_fields,
+                           ULINT_UNDEFINED, &heap);
+  mtr.commit();
   clust_index->lock.s_lock(SRW_LOCK_CALL);
   if (clust_index->online_log
       && clust_index->online_status <= ONLINE_INDEX_CREATION)
@@ -4296,20 +4314,13 @@ void row_log_update_handle(const dtuple_t *tuple,
     /* Table rebuild */
     if (is_update)
     {
-      const dtuple_t *rebuilt_old_pk= row_log_table_get_old_pk(
-         rec, match_rec, clust_index, rec_info, &mtr, heap);
+      const dtuple_t *rebuilt_old_pk= row_log_table_get_pk(
+         prev_version, clust_index, prev_offsets, NULL, &heap);
       row_log_table_update(match_rec, clust_index, offsets, rebuilt_old_pk);
     }
     else
-    {
-      trx_undo_prev_version_build(rec, &mtr, match_rec,
-                                  clust_index, offsets, heap,
-				  &prev_version, NULL, NULL, 0, rec_info);
-      row_log_table_delete(prev_version, clust_index, offsets, nullptr);
-    }
+      row_log_table_delete(prev_version, clust_index, prev_offsets, nullptr);
     clust_index->lock.s_unlock();
-func_exit:
-    mtr.commit();
     return;
   }
 
@@ -4329,14 +4340,6 @@ func_exit:
                    &new_ext, heap);
   }
 
-  trx_undo_prev_version_build(rec, &mtr, match_rec, clust_index,
-                              offsets, heap, &prev_version, NULL,
-                              NULL, 0, rec_info);
-
-  offsets= rec_get_offsets(prev_version, clust_index, offsets,
-                           clust_index->n_core_fields,
-                           ULINT_UNDEFINED, &heap);
-
   dict_index_t *index= dict_table_get_next_index(clust_index);
   while (index)
   {
@@ -4346,7 +4349,7 @@ func_exit:
     {
       row_ext_t *old_ext;
       dtuple_t *old_row= row_build(ROW_COPY_POINTERS, clust_index,
-                                   prev_version, offsets,
+                                   prev_version, prev_offsets,
 				   index->table, NULL, NULL, &old_ext, heap);
       dtuple_t *old_entry= row_build_index_entry_low(
             old_row, old_ext, index, heap, ROW_BUILD_NORMAL);
@@ -4362,5 +4365,4 @@ func_exit:
     index->lock.s_unlock();
     index= dict_table_get_next_index(index);
   }
-  goto func_exit;
 }
