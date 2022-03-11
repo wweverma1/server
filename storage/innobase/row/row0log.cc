@@ -819,7 +819,6 @@ row_log_table_low_redundant(
 	dtuple_t*	tuple;
 	const ulint	n_fields = rec_get_n_fields_old(rec);
 
-	ut_ad(!page_is_comp(page_align(rec)));
 	ut_ad(index->n_fields >= n_fields);
 	ut_ad(index->n_fields == n_fields || index->is_instant());
 	ut_ad(dict_tf2_is_valid(index->table->flags, index->table->flags2));
@@ -4228,24 +4227,41 @@ void row_log_insert_handle(const dtuple_t *tuple,
   rec_t *match_rec= row_log_undo_vers_record(tuple, clust_index, &rec,
                                              &offsets,
                                              rec_info, &mtr, heap);
-  mtr.commit();
   if (!match_rec)
+  {
+    mtr.commit();
     return;
+  }
+
+  if (match_rec != rec)
+    offsets= rec_get_offsets(match_rec, clust_index, offsets,
+                             clust_index->n_core_fields,
+                             ULINT_UNDEFINED, &heap);
+
+  rec_t *copy_rec= rec_copy(mem_heap_alloc(
+    heap, rec_offs_size(offsets)), match_rec, offsets);
+  rec_offs_make_valid(copy_rec, clust_index, true, offsets);
+  mtr.commit();
 
   clust_index->lock.s_lock(SRW_LOCK_CALL);
   if (clust_index->online_log
       && clust_index->online_status <= ONLINE_INDEX_CREATION)
   {
-    row_log_table_insert(match_rec, clust_index, offsets);
+    row_log_table_insert(copy_rec, clust_index, offsets);
     clust_index->lock.s_unlock();
   }
   else
   {
+    dict_table_t *table= clust_index->table;
     clust_index->lock.s_unlock();
-    ulint len;
+    ulint len= 0;
     trx_id_t trx_id= trx_read_trx_id(
-      rec_get_nth_field(rec, offsets, clust_index->db_trx_id(), &len));
+      rec_get_nth_field(copy_rec, offsets, clust_index->db_trx_id(), &len));
     ut_ad(len == DATA_TRX_ID_LEN);
+    row_ext_t *ext;
+    dtuple_t *row= row_build(ROW_COPY_POINTERS, clust_index,
+      copy_rec, offsets, table, NULL, NULL, &ext, heap);
+
     dict_index_t *index= dict_table_get_next_index(clust_index);
     while (index)
     {
@@ -4253,10 +4269,6 @@ void row_log_insert_handle(const dtuple_t *tuple,
       if (index->online_log
           && index->online_status <= ONLINE_INDEX_CREATION)
       {
-	row_ext_t *ext;
-        dtuple_t *row= row_build(ROW_COPY_POINTERS, clust_index,
-                                 match_rec, offsets, index->table,
-				 NULL, NULL, &ext, heap);
         dtuple_t *entry= row_build_index_entry_low(row, ext, index,
                                                    heap, ROW_BUILD_NORMAL);
 
@@ -4287,8 +4299,7 @@ void row_log_update_handle(const dtuple_t *tuple,
   rec_t *prev_version;
   bool is_update= (rec_info->type == TRX_UNDO_UPD_EXIST_REC);
   rec_t *match_rec= row_log_undo_vers_record(
-                          tuple, clust_index, &rec, &offsets,
-                          rec_info, &mtr, heap);
+    tuple, clust_index, &rec, &offsets, rec_info, &mtr, heap);
   if (!match_rec)
   {
     mtr.commit();
@@ -4306,7 +4317,17 @@ void row_log_update_handle(const dtuple_t *tuple,
   offsets= rec_get_offsets(match_rec, clust_index, offsets,
                            clust_index->n_core_fields,
                            ULINT_UNDEFINED, &heap);
+
+  rec_t *copy_rec= rec_copy(mem_heap_alloc(
+              heap, rec_offs_size(offsets)), match_rec, offsets);
+  rec_offs_make_valid(copy_rec, clust_index, true, offsets);
+
+  rec_t *prev_copy_rec= rec_copy(mem_heap_alloc(
+    heap, rec_offs_size(prev_offsets)), prev_version, prev_offsets);
+  rec_offs_make_valid(prev_copy_rec, clust_index, true, prev_offsets);
+
   mtr.commit();
+
   clust_index->lock.s_lock(SRW_LOCK_CALL);
   if (clust_index->online_log
       && clust_index->online_status <= ONLINE_INDEX_CREATION)
@@ -4315,15 +4336,16 @@ void row_log_update_handle(const dtuple_t *tuple,
     if (is_update)
     {
       const dtuple_t *rebuilt_old_pk= row_log_table_get_pk(
-         prev_version, clust_index, prev_offsets, NULL, &heap);
-      row_log_table_update(match_rec, clust_index, offsets, rebuilt_old_pk);
+         prev_copy_rec, clust_index, prev_offsets, NULL, &heap);
+      row_log_table_update(copy_rec, clust_index, offsets, rebuilt_old_pk);
     }
     else
-      row_log_table_delete(prev_version, clust_index, prev_offsets, nullptr);
+      row_log_table_delete(prev_copy_rec, clust_index, prev_offsets, nullptr);
     clust_index->lock.s_unlock();
     return;
   }
 
+  dict_table_t *table= clust_index->table;
   clust_index->lock.s_unlock();
   dtuple_t *row= nullptr;
   trx_id_t trx_id;
@@ -4333,12 +4355,17 @@ void row_log_update_handle(const dtuple_t *tuple,
     ulint len;
     trx_id= trx_read_trx_id(
       rec_get_nth_field(
-        match_rec, offsets, clust_index->db_trx_id(), &len));
+        copy_rec, offsets, clust_index->db_trx_id(), &len));
     ut_ad(len == DATA_TRX_ID_LEN);
     row= row_build(ROW_COPY_POINTERS, clust_index,
-                   match_rec, offsets, clust_index->table, NULL, NULL,
+                   copy_rec, offsets, clust_index->table, NULL, NULL,
                    &new_ext, heap);
   }
+
+  row_ext_t *old_ext;
+  dtuple_t *old_row= row_build(ROW_COPY_POINTERS, clust_index,
+                               prev_copy_rec, prev_offsets,
+                               table, NULL, NULL, &old_ext, heap);
 
   dict_index_t *index= dict_table_get_next_index(clust_index);
   while (index)
@@ -4347,10 +4374,6 @@ void row_log_update_handle(const dtuple_t *tuple,
     if (index->online_log
         && index->online_status <= ONLINE_INDEX_CREATION)
     {
-      row_ext_t *old_ext;
-      dtuple_t *old_row= row_build(ROW_COPY_POINTERS, clust_index,
-                                   prev_version, prev_offsets,
-				   index->table, NULL, NULL, &old_ext, heap);
       dtuple_t *old_entry= row_build_index_entry_low(
             old_row, old_ext, index, heap, ROW_BUILD_NORMAL);
 
@@ -4359,7 +4382,7 @@ void row_log_update_handle(const dtuple_t *tuple,
       {
         dtuple_t *new_entry= row_build_index_entry_low(
            row, new_ext, index, heap, ROW_BUILD_NORMAL);
-	row_log_online_op(index, new_entry, trx_id);
+        row_log_online_op(index, new_entry, trx_id);
       }
     }
     index->lock.s_unlock();
