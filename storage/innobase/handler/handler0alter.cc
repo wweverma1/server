@@ -11013,6 +11013,9 @@ lock_fail:
 						ctx, ha_alter_info,
 						altered_table, error);
 					index->lock.x_unlock();
+					if (fts_exist) {
+						purge_sys.resume_FTS();
+					}
 					DBUG_RETURN(true);
 				}
 
