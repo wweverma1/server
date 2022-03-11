@@ -47,6 +47,7 @@
 #include "sql_common.h"
 #include "my_dir.h"
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
+#include "rpl_gtid.h"
 #include "sql_string.h"   // needed for Rpl_filter
 #include "sql_list.h"     // needed for Rpl_filter
 #include "rpl_filter.h"
@@ -2070,7 +2071,7 @@ static uint32 *parse_u32_list(const char *str, size_t str_len, uint32 *n_vals)
   const char *str_begin= const_cast<char *>(str);
   const char *str_end= str_begin + str_len;
   const char *p = str_begin;
-  uint32 len= 0, alloc_len= 4;
+  uint32 len= 0, alloc_len= (uint32) ceil(str_len/2.0);
   uint32 *list= NULL;
   int err;
 
@@ -2266,18 +2267,20 @@ int parse_position_argument(
     error message)
   @param[in] option_value : The user-provided list of domain or server ids
   @param[in] filter : The filter to update with the provided domain/server id
-  @param[in] setter : The mutator method which adds the provided domain/server
-    ids to the provided filter
+  @param[in] mode : Specifies whether the list should be a blacklist or
+    whitelist
 */
 template <typename T>
-int parse_gtid_filter_option(const char *option_name, char *option_val,
-                             T **filter, int (T::*setter)(uint32 *, size_t))
+int parse_gtid_filter_option(
+    const char *option_name, char *option_val, T **filter,
+    Gtid_event_filter::id_restriction_mode mode)
 {
   uint32 n_ids= 0;
   uint32 *id_list= parse_u32_list(option_val, strlen(option_val), &n_ids);
 
-  if (id_list == NULL || n_ids == 0)
+  if (id_list == NULL)
   {
+    DBUG_ASSERT(n_ids == 0);
     sql_print_error(
         "Input for %s is invalid. Should be a list of positive integers",
         option_name);
@@ -2287,7 +2290,7 @@ int parse_gtid_filter_option(const char *option_name, char *option_val,
   if (!(*filter))
     (*filter)= new T();
 
-  int err= ((*filter)->*setter)(id_list, n_ids);
+  int err= (*filter)->set_id_restrictions(id_list, n_ids, mode);
   my_free(id_list);
   return err;
 }
@@ -2506,7 +2509,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     if (parse_gtid_filter_option<Domain_gtid_event_filter>(
             "--ignore-domain-ids", ignore_domain_ids_str,
             &domain_id_gtid_filter,
-            &Domain_gtid_event_filter::set_blacklist))
+            Gtid_event_filter::id_restriction_mode::BLACKLIST_MODE))
       return 1;
     break;
   }
@@ -2515,7 +2518,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     if (parse_gtid_filter_option<Domain_gtid_event_filter>(
             "--do-domain-ids", do_domain_ids_str,
             &domain_id_gtid_filter,
-            &Domain_gtid_event_filter::set_whitelist))
+            Gtid_event_filter::id_restriction_mode::WHITELIST_MODE))
       return 1;
     break;
   }
@@ -2524,7 +2527,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     if (parse_gtid_filter_option<Server_gtid_event_filter>(
             "--ignore-server-ids", ignore_server_ids_str,
             &server_id_gtid_filter,
-            &Server_gtid_event_filter::set_blacklist))
+            Gtid_event_filter::id_restriction_mode::BLACKLIST_MODE))
       return 1;
     break;
   }
@@ -2533,7 +2536,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     if (parse_gtid_filter_option<Server_gtid_event_filter>(
             "--do-server-ids", do_server_ids_str,
             &server_id_gtid_filter,
-            &Server_gtid_event_filter::set_whitelist))
+            Gtid_event_filter::id_restriction_mode::WHITELIST_MODE))
       return 1;
     break;
   }
@@ -2542,7 +2545,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     if (parse_gtid_filter_option<Server_gtid_event_filter>(
             "--server-id", server_id_str,
             &server_id_gtid_filter,
-            &Server_gtid_event_filter::set_whitelist))
+            Gtid_event_filter::id_restriction_mode::WHITELIST_MODE))
       return 1;
     break;
   }

@@ -535,6 +535,13 @@ public:
     INTERSECTING_GTID_FILTER_TYPE = 5
   };
 
+  enum class id_restriction_mode
+  {
+    MODE_NOT_SET,
+    WHITELIST_MODE,
+    BLACKLIST_MODE,
+  };
+
   /*
     Run the filter on an input gtid to test if the corresponding log events
     should be excluded from a result
@@ -735,18 +742,17 @@ public:
   virtual const char* get_id_type_name() = 0;
 
   /*
-    Set the default behavior to include all ids except for the ones that are
-    provided in the input list or overridden with another filter.
-    Returns 0 on ok, non-zero on error
-  */
-  int set_blacklist(T *id_list, size_t n_ids);
+    Sets restrictions on entire ids using the corresponding mode (i.e. either
+    whitelist or blacklist, refer to Gtid_event_filter::id_restriction_mode)
 
-  /*
-    Set the default behavior to exclude all ids except for the ones that are
-    provided in the input list or overridden with another filter.
-    Returns 0 on ok, non-zero on error
+    A blacklist will allow all ids except for the ones provided in the input
+    list.
+    A whitelist will only allow ids provided in the input list.
+
+    Returns 0 on ok, non-zero on error.
   */
-  int set_whitelist(T *id_list, size_t n_ids);
+  int set_id_restrictions(T *id_list, size_t n_ids,
+                          Gtid_event_filter::id_restriction_mode mode);
 
 protected:
 
@@ -756,7 +762,7 @@ protected:
 
   HASH m_filters_by_id_hash;
 
-  my_bool m_whitelist_set, m_blacklist_set;
+  Gtid_event_filter::id_restriction_mode m_id_restriction_mode;
 
   gtid_filter_element<T> *find_or_create_filter_element_for_id(T);
 };

@@ -34,6 +34,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 5 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -92,6 +94,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 2 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -143,6 +147,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0,1 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 4 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -199,6 +205,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 3 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -253,6 +261,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0,1 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -300,6 +310,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=1 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 2 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -351,6 +363,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=0,1 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 2 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -403,6 +417,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --stop-position=1-1-2 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -448,9 +464,11 @@ START SLAVE ;
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 RESET MASTER;
-# MYSQL_BINLOG BINLOG_FILE_PARAM  2> MYSQLBINLOG_STDERR | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=1-4-2 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 4 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -474,6 +492,8 @@ CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
 connection master;
 RESET MASTER;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t3'
 connection slave;
 RESET SLAVE;
 set global gtid_slave_pos="";
@@ -506,6 +526,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 --ignore-server-ids=1 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -554,6 +576,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=1,2 --ignore-server-ids=1 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -604,6 +628,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 --stop-position=0-1-4 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 2 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -706,6 +732,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=3 --stop-position=0-1-4 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -752,9 +780,11 @@ START SLAVE ;
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 RESET MASTER;
-# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=2 2> MYSQLBINLOG_STDERR | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=1-1-2 --do-domain-ids=2 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -801,9 +831,11 @@ START SLAVE ;
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 RESET MASTER;
-# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0 2> MYSQLBINLOG_STDERR | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --ignore-domain-ids=0 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 3 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -856,9 +888,11 @@ START SLAVE ;
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 RESET MASTER;
-# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=1 2> MYSQLBINLOG_STDERR | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --ignore-server-ids=1 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 2 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -911,9 +945,11 @@ Note	1255	Slave already has been stopped
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 RESET MASTER;
-# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --do-domain-ids=0 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -929,7 +965,7 @@ connection master;
 RESET MASTER;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 Warnings:
-Note	1051	Unknown table 'test.t3,test.t4,test.t5'
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
 connection slave;
 RESET SLAVE;
 set global gtid_slave_pos="";
@@ -964,7 +1000,7 @@ Note	1255	Slave already has been stopped
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 RESET MASTER;
-# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=1 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --do-domain-ids=1 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
 connection master;
@@ -1016,7 +1052,7 @@ Note	1255	Slave already has been stopped
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 RESET MASTER;
-# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --ignore-domain-ids=0 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
 connection master;
@@ -1069,9 +1105,11 @@ Note	1255	Slave already has been stopped
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 RESET MASTER;
-# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=1 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --ignore-domain-ids=1 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -1087,7 +1125,7 @@ connection master;
 RESET MASTER;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 Warnings:
-Note	1051	Unknown table 'test.t3,test.t4,test.t5'
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
 connection slave;
 RESET SLAVE;
 set global gtid_slave_pos="";
@@ -1120,9 +1158,11 @@ Note	1255	Slave already has been stopped
 connection master;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 RESET MASTER;
-# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=3 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-0 --ignore-server-ids=3 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -1173,6 +1213,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 --ignore-server-ids=3 --gtid-strict-mode 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -1180,6 +1222,7 @@ connection slave;
 # All tables are consistent
 # Strict mode enabled - checking mysqlbinlog error output for out
 #                       of order GTIDs
+# Not expecting to find out of order GTID error..
 NOT FOUND /Found out of order GTID/ in mysqlbinlog_stderr.out
 # Test finished - resetting master and slave..
 connection slave;
@@ -1224,6 +1267,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=1 --gtid-strict-mode 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -1231,6 +1276,7 @@ connection slave;
 # All tables are consistent
 # Strict mode enabled - checking mysqlbinlog error output for out
 #                       of order GTIDs
+# Expecting to find out of order GTID error..
 FOUND 1 /Found out of order GTID/ in mysqlbinlog_stderr.out
 # Test finished - resetting master and slave..
 connection slave;
@@ -1275,6 +1321,8 @@ RESET MASTER;
 # MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=1 --gtid-strict-mode 2> MYSQLBINLOG_STDERR | MYSQL
 connection slave;
 # Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
 # Verifying integrity of tables..
 connection master;
 connection slave;
@@ -1282,6 +1330,7 @@ connection slave;
 # All tables are consistent
 # Strict mode enabled - checking mysqlbinlog error output for out
 #                       of order GTIDs
+# Expecting to find out of order GTID error..
 FOUND 1 /Found out of order GTID/ in mysqlbinlog_stderr.out
 # Test finished - resetting master and slave..
 connection slave;

@@ -3492,7 +3492,7 @@ void free_u32_gtid_filter_element(void *p)
 template <typename T>
 Id_delegating_gtid_event_filter<T>::Id_delegating_gtid_event_filter()
     : m_num_stateful_filters(0), m_num_completed_filters(0),
-      m_whitelist_set(FALSE), m_blacklist_set(FALSE)
+      m_id_restriction_mode(id_restriction_mode::MODE_NOT_SET)
 {
   void (*free_func)(void *);
   if (std::is_same<T,uint32>::value)
@@ -3589,90 +3589,76 @@ my_bool Id_delegating_gtid_event_filter<T>::exclude(rpl_gtid *gtid)
   return ret;
 }
 
-template <typename T>
-int Id_delegating_gtid_event_filter<T>::set_blacklist(T *id_list, size_t n_ids)
+
+template <typename F> Gtid_event_filter* create_event_filter()
 {
-  size_t id_ctr;
-  int err;
-
-  if (m_whitelist_set)
-  {
-    /*
-      A do filtering rule is already set, we can't have a do and ignore filter
-      together
-    */
-    sql_print_error("Cannot create ignore filtering rule for %s id because a "
-                    "do rule already exists",
-                    get_id_type_name());
-    err= 1;
-    goto err;
-  }
-
-  /* If a blacklist is specified more than once, only use the latest values */
-  if (m_blacklist_set)
-    my_hash_reset(&m_filters_by_id_hash);
-
-  for (id_ctr= 0; id_ctr < n_ids; id_ctr++)
-  {
-    T filter_id= id_list[id_ctr];
-    gtid_filter_element<T> *map_element=
-        find_or_create_filter_element_for_id(filter_id);
-
-    if(map_element == NULL)
-    {
-      /*
-        If map_element is NULL, find_or_create_filter_element_for_id failed and
-        has already written the error message
-      */
-      err= 1;
-      goto err;
-    }
-    else if (map_element->filter == NULL)
-    {
-      map_element->filter= new Reject_all_gtid_filter();
-      m_num_stateful_filters++;
-    }
-    else
-    {
-      DBUG_ASSERT(map_element->filter->get_filter_type() ==
-                  REJECT_ALL_GTID_FILTER_TYPE);
-    }
-  }
-
-  /*
-    With a blacklist, we by default want to accept everything that is not
-    specified in the list
-  */
-  set_default_filter(new Accept_all_gtid_filter());
-  m_blacklist_set= TRUE;
-  err= 0;
-
-err:
-  return err;
+  return new F();
 }
 
 template <typename T>
-int Id_delegating_gtid_event_filter<T>::set_whitelist(T *id_list, size_t n_ids)
+int Id_delegating_gtid_event_filter<T>::set_id_restrictions(
+    T *id_list, size_t n_ids, id_restriction_mode mode)
 {
+  static const char *WHITELIST_NAME= "do", *BLACKLIST_NAME= "ignore";
+
   size_t id_ctr;
   int err;
+  Gtid_event_filter::gtid_event_filter_type filter_type;
+  const char *filter_name, *opposite_filter_name;
+  Gtid_event_filter *(*construct_filter)(void);
+  Gtid_event_filter *(*construct_default_filter)(void);
 
-  if (m_blacklist_set)
+  DBUG_ASSERT(mode > id_restriction_mode::MODE_NOT_SET);
+
+  /*
+    Set up variables which help this filter either be in whitelist or blacklist
+    mode
+  */
+  if (mode == Gtid_event_filter::id_restriction_mode::WHITELIST_MODE)
   {
-    /*
-      An ignore filtering rule is already set, we can't have a do and ignore
-      filter together
-    */
-    sql_print_error("Cannot create do filtering rule for %s id because an "
-                    "ignore rule already exists",
-                    get_id_type_name());
-    err= 1;
-    goto err;
+    filter_type= Gtid_event_filter::ACCEPT_ALL_GTID_FILTER_TYPE;
+    filter_name= WHITELIST_NAME;
+    opposite_filter_name= BLACKLIST_NAME;
+    construct_filter=
+        create_event_filter<Accept_all_gtid_filter>;
+    construct_default_filter=
+        create_event_filter<Reject_all_gtid_filter>;
+  }
+  else if (mode == Gtid_event_filter::id_restriction_mode::BLACKLIST_MODE)
+  {
+    filter_type= Gtid_event_filter::REJECT_ALL_GTID_FILTER_TYPE;
+    filter_name= BLACKLIST_NAME;
+    opposite_filter_name= WHITELIST_NAME;
+    construct_filter=
+        create_event_filter<Reject_all_gtid_filter>;
+    construct_default_filter=
+        create_event_filter<Accept_all_gtid_filter>;
+  }
+  else
+  {
+    DBUG_ASSERT(0);
   }
 
-  /* If a whitelist is specified more than once, only use the latest values */
-  if (m_whitelist_set)
+  if (m_id_restriction_mode !=
+      Gtid_event_filter::id_restriction_mode::MODE_NOT_SET)
+  {
+    if (mode != m_id_restriction_mode)
+    {
+      /*
+        If a rule specifying the opposite version of this has already been set,
+        error.
+      */
+      sql_print_error("Cannot create %s filtering rule for %s id because "
+                      "%s rule already exists",
+                      filter_name, get_id_type_name(),
+                      opposite_filter_name);
+      err= 1;
+      goto err;
+    }
+
+    /* This filter is specified more than once, only use the latest values */
     my_hash_reset(&m_filters_by_id_hash);
+  }
 
   for (id_ctr= 0; id_ctr < n_ids; id_ctr++)
   {
@@ -3691,22 +3677,25 @@ int Id_delegating_gtid_event_filter<T>::set_whitelist(T *id_list, size_t n_ids)
     }
     else if (map_element->filter == NULL)
     {
-      map_element->filter= new Accept_all_gtid_filter();
+      map_element->filter= construct_filter();
       m_num_stateful_filters++;
     }
     else
     {
       DBUG_ASSERT(map_element->filter->get_filter_type() ==
-                  ACCEPT_ALL_GTID_FILTER_TYPE);
+                  filter_type);
     }
   }
 
   /*
     With a whitelist, we by only want to accept the ids which are specified.
     Everything else should be denied.
+
+    With a blacklist, we by default want to accept everything that is not
+    specified in the list
   */
-  set_default_filter(new Reject_all_gtid_filter());
-  m_whitelist_set= TRUE;
+  set_default_filter(construct_default_filter());
+  m_id_restriction_mode= mode;
   err= 0;
 
 err:

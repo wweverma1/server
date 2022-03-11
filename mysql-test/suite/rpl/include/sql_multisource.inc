@@ -39,7 +39,7 @@ INSERT INTO t1 values (2);
 
 FLUSH LOGS;
 
---eval SET @@global.gtid_domain_id= $ORIG_GTID_DOMAIN_ID
---eval SET @@global.server_id= $ORIG_SERVER_ID
+--eval SET @@session.gtid_domain_id= $ORIG_GTID_DOMAIN_ID
+--eval SET @@session.server_id= $ORIG_SERVER_ID
 
 --enable_query_log

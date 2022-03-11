@@ -29,23 +29,19 @@ if (!$check_db)
 
 --echo # Checking consistency of '$check_db' database tables between $con1 and $con2
 
-if (!$n_tables)
+--connection $con1
+--let $c1_n_tables= `select count(*) from information_schema.tables WHERE table_schema = '$check_db'`
+if (`SELECT $c1_n_tables != $n_tables`)
 {
-    --connection $con1
-    --let $c1_n_tables= `select count(*) from information_schema.tables WHERE table_schema = '$check_db'`
-    if (`SELECT $c1_n_tables != $n_tables`)
-    {
-        eval die "$con1 had $c1_n_tables but $con2 had $n_tables tables after binlog replay";
-    }
-    --echo # Both servers have $n_tables tables
+    die "$con1 had $c1_n_tables tables but $con2 had $n_tables after binlog replay";
 }
+--echo # Both servers have $n_tables tables
 
 --let $ctr= 1
 --echo # Verifying integrity of tables..
 while($ctr <= $n_tables)
 {
     --let $cksum_tbl= query_get_value(SELECT table_name FROM information_schema.tables WHERE table_schema = 'test', table_name, $ctr)
-    #--let $cksum_tbl= query_get_value(SELECT table_name AS cksum_cmd FROM information_schema.tables WHERE table_schema = 'test', cksum_cmd, $ctr)
     --connection $con1
     --let $c1_cksum= `CHECKSUM TABLE $cksum_tbl`
     --connection $con2
@@ -53,11 +49,7 @@ while($ctr <= $n_tables)
 
     if ($c1_cksum != $c2_cksum)
     {
-        #--connection $con1
-        #eval SELECT * from $cksum_tbl;
-        #--connection $con2
-        #eval SELECT * from $cksum_tbl;
-        eval die "Table $cksum_tbl differs between connections $con1 and $con2";
+        die "Table $cksum_tbl differs between connections $con1 and $con2";
     }
     if ($c1_cksum == $c2_cksum)
     {

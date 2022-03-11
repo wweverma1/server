@@ -333,6 +333,7 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 --echo #  filtered out should not error
 --echo #
 --let $strict_mode=1
+--let $strict_mode_err=0
 --let $slave_sql_errno=0
 --let $do_domain_ids=0
 --let $ignore_domain_ids=
@@ -346,6 +347,7 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 --echo #  Test Case 24: Out of order GTIDs from included domains should error
 --echo #
 --let $strict_mode=1
+--let $strict_mode_err=1
 --let $slave_sql_errno=1950
 --let $do_domain_ids=1
 --let $ignore_domain_ids=
@@ -359,6 +361,7 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 --echo #  Test Case 25: Out of order GTIDs from included servers should error
 --echo #
 --let $strict_mode=1
+--let $strict_mode_err=1
 --let $slave_sql_errno=1950
 --let $do_domain_ids=
 --let $ignore_domain_ids=

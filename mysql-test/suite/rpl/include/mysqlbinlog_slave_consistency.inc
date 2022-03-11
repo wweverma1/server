@@ -15,6 +15,8 @@
 # param $con1              : The connection name of the primary server
 # param $con2              : The connection name of the replica server
 # param $strict_mode       : Uses input and checks for out of order GTIDs
+# param $strict_mode_err   : A boolean that provides expectations for strict
+#                            mode to error
 # param $slave_sql_errno   : Expected error number of the slave SQL thread
 
 
@@ -60,13 +62,14 @@ if ($strict_mode)
 --copy_file $MYSQLD_DATADIR/$BINLOG_FILENAME $BINLOG_FILE_PARAM
 
 --connection $con2
+--let $msbl_args=
 if (`SELECT strcmp("$start_position","") != 0`)
 {
     eval set global gtid_slave_pos="$start_position";
+    --let $msbl_args= $msbl_args --start-position=$start_position
 }
 
 --let $cm_args= MASTER_USE_GTID=slave_pos
---let $msbl_args=
 if (`SELECT strcmp("$do_domain_ids","") != 0`)
 {
     --let $cm_args= $cm_args, DO_DOMAIN_IDS=($do_domain_ids)
@@ -148,6 +151,14 @@ if ($strict_mode)
     --echo #                       of order GTIDs
     --let SEARCH_FILE=$MYSQLBINLOG_STDERR
     --let SEARCH_PATTERN=Found out of order GTID
+    if ($strict_mode_err)
+    {
+        --echo # Expecting to find out of order GTID error..
+    }
+    if (!$strict_mode_err)
+    {
+        --echo # Not expecting to find out of order GTID error..
+    }
     --source include/search_pattern_in_file.inc
 }
 
