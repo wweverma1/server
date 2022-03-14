@@ -91,6 +91,7 @@ include/stop_slave.inc
 # Asserted this: SQL thread position should not increase after STOP SLAVE
 # Asserted this: Query should not be executed after STOP SLAVE
 # Asserted this: Status should be '' after STOP SLAVE
+# CHANGE MASTER TO MASTER_DELAY = 3*T
 include/start_slave.inc
 # Asserted this: START SLAVE should finish quickly
 connection master;

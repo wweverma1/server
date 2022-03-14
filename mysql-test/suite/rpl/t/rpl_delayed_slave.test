@@ -216,9 +216,10 @@ INSERT INTO t1 VALUES (delay_on_slave(1), 6);
 # Set up a longer delay.
 --source include/stop_slave.inc
 
---echo # CHANGE MASTER TO MASTER_DELAY = 3*T
+--echo # CHANGE MASTER TO MASTER_DELAY = (a very long time)
+--let $infty = 2147483647
 --disable_query_log
-eval CHANGE MASTER TO MASTER_DELAY = $time3;
+eval CHANGE MASTER TO MASTER_DELAY = $infty;
 --enable_query_log
 
 --source include/start_slave.inc
@@ -252,6 +253,11 @@ INSERT INTO t1 VALUES ('stop slave and start slave: DML', 7);
 --let $assert_text= Status should be '' after STOP SLAVE
 --let $assert_cond= "[SHOW SLAVE STATUS, Slave_SQL_Running_State, 1]" = ""
 --source include/rpl_assert.inc
+
+--echo # CHANGE MASTER TO MASTER_DELAY = 3*T
+--disable_query_log
+eval CHANGE MASTER TO MASTER_DELAY = $time3;
+--enable_query_log
 
 --source include/start_slave.inc
 
