@@ -3979,8 +3979,51 @@ my_bool Domain_gtid_event_filter::exclude(rpl_gtid *gtid)
                         : TRUE;
 }
 
+Intersecting_gtid_event_filter::Intersecting_gtid_event_filter(
+    Gtid_event_filter *filter1, Gtid_event_filter *filter2)
+{
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &m_filters,
+                        sizeof(Gtid_event_filter *), 3, 3, MYF(0));
+  insert_dynamic(&m_filters, (void *) &filter1);
+  insert_dynamic(&m_filters, (void *) &filter2);
+}
+
+Intersecting_gtid_event_filter::~Intersecting_gtid_event_filter()
+{
+  Gtid_event_filter *tmp_filter= NULL;
+  ulong i;
+  for (i= 0; i < m_filters.elements; i++)
+  {
+    tmp_filter= *(Gtid_event_filter **) dynamic_array_ptr(&m_filters, i);
+    delete tmp_filter;
+  }
+  delete_dynamic(&m_filters);
+}
+
 my_bool Intersecting_gtid_event_filter::exclude(rpl_gtid *gtid)
 {
-  DBUG_ASSERT(m_filter1 && m_filter2);
-  return m_filter1->exclude(gtid) || m_filter2->exclude(gtid);
+  Gtid_event_filter *tmp_filter= NULL;
+  ulong i;
+  for (i= 0; i < m_filters.elements; i++)
+  {
+    tmp_filter= *(Gtid_event_filter **) dynamic_array_ptr(&m_filters, i);
+    DBUG_ASSERT(tmp_filter);
+    if (tmp_filter->exclude(gtid))
+      return TRUE;
+  }
+  return FALSE;
+}
+
+my_bool Intersecting_gtid_event_filter::has_finished()
+{
+  Gtid_event_filter *tmp_filter= NULL;
+  ulong i;
+  for (i= 0; i < m_filters.elements; i++)
+  {
+    tmp_filter= *(Gtid_event_filter **) dynamic_array_ptr(&m_filters, i);
+    DBUG_ASSERT(tmp_filter);
+    if (tmp_filter->has_finished())
+      return TRUE;
+  }
+  return FALSE;
 }

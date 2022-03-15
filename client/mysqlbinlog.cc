@@ -2131,12 +2131,20 @@ end:
 static void extend_main_gtid_event_filter(Gtid_event_filter *new_filter)
 {
   if (gtid_event_filter == NULL)
+  {
     gtid_event_filter= new_filter;
+  }
   else
-    gtid_event_filter=
-        new Intersecting_gtid_event_filter(gtid_event_filter, new_filter);
+  {
+    if (gtid_event_filter->get_filter_type() !=
+        Gtid_event_filter::INTERSECTING_GTID_FILTER_TYPE)
+      gtid_event_filter=
+          new Intersecting_gtid_event_filter(gtid_event_filter, new_filter);
+    else
+      ((Intersecting_gtid_event_filter *) gtid_event_filter)
+          ->add_filter(new_filter);
+  }
 }
-
 
 static void die()
 {

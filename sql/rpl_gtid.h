@@ -879,7 +879,6 @@ private:
 class Server_gtid_event_filter
     : public Id_delegating_gtid_event_filter<decltype(rpl_gtid::server_id)>
 {
-
 public:
   /*
     Returns the server id of from the input GTID
@@ -893,45 +892,41 @@ public:
 };
 
 /*
-  A Gtid_event_filter implementation that delegates the filtering to two
-  other filters, where the result is the intersection between the two.
+  A Gtid_event_filter implementation that delegates the filtering to other
+  filters, where the result is the intersection between them all.
 */
 class Intersecting_gtid_event_filter : public Gtid_event_filter
 {
 public:
   Intersecting_gtid_event_filter(Gtid_event_filter *filter1,
-                                 Gtid_event_filter *filter2)
-      : m_filter1(filter1), m_filter2(filter2) {}
-  ~Intersecting_gtid_event_filter()
-  {
-    delete m_filter1;
-    delete m_filter2;
-  }
+                                 Gtid_event_filter *filter2);
+  ~Intersecting_gtid_event_filter();
 
   /*
-    Returns TRUE if either m_filter1 or m_filter1 exclude the gtid, returns
-    FALSE otherwise, i.e. both m_filter1 and m_filter2 allow the gtid
+    Returns TRUE if any filers exclude the gtid, returns FALSE otherwise, i.e.
+    all filters must allow the GTID.
   */
   my_bool exclude(rpl_gtid *gtid);
-  uint32 get_filter_type() { return INTERSECTING_GTID_FILTER_TYPE; }
-
-  Gtid_event_filter *get_filter_1() { return m_filter1; }
-  Gtid_event_filter *get_filter_2() { return m_filter2; }
 
   /*
-    Returns true if either filter has finished. To elaborate, as this filter
-    performs an intersection, if either filter has finished, the result would
+    Returns true if any filters have finished. To elaborate, as this filter
+    performs an intersection, if any filter has finished, the result would
     be excluded regardless.
   */
-  my_bool has_finished()
+  my_bool has_finished();
+
+  uint32 get_filter_type() { return INTERSECTING_GTID_FILTER_TYPE; }
+
+  /*
+    Adds a new filter to the intersection
+  */
+  my_bool add_filter(Gtid_event_filter *filter)
   {
-    DBUG_ASSERT(m_filter1 && m_filter2);
-    return m_filter1->has_finished() || m_filter2->has_finished();
+    return insert_dynamic(&m_filters, (void *) &filter);
   }
 
   protected:
-    Gtid_event_filter *m_filter1;
-    Gtid_event_filter *m_filter2;
+    DYNAMIC_ARRAY m_filters;
 };
 
 #endif  /* RPL_GTID_H */

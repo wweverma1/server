@@ -150,23 +150,7 @@ if ($t2_checksum != `CHECKSUM TABLE t2`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -186,19 +170,7 @@ if ($t4_checksum != `CHECKSUM TABLE t4`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -215,23 +187,7 @@ if ($t1_checksum != `CHECKSUM TABLE t1`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't2'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t2','t3','t4','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -251,19 +207,7 @@ if ($t5_checksum != `CHECKSUM TABLE t5`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't2'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t2','t4','t6')`)
 {
     die $table_exists_error;
 }
@@ -280,23 +224,7 @@ if ($t1_partial_checksum != `CHECKSUM TABLE t1`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't2'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t2','t3','t4','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -316,19 +244,7 @@ if ($t5_checksum != `CHECKSUM TABLE t5`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't2'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t2','t4','t6')`)
 {
     die $table_exists_error;
 }
@@ -345,23 +261,7 @@ if ($t2_checksum != `CHECKSUM TABLE t2`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -383,23 +283,7 @@ if ($t4_checksum != `CHECKSUM TABLE t4`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't2'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t2','t3','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -420,23 +304,7 @@ if ($t4_checksum != `CHECKSUM TABLE t4`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't2'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t2','t3','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -471,11 +339,7 @@ if ($t11_t2_checksum != `CHECKSUM TABLE t2`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -495,19 +359,7 @@ if ($t6_checksum != `CHECKSUM TABLE t6`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5')`)
 {
     die $table_exists_error;
 }
@@ -523,23 +375,7 @@ if ($t2_checksum != `CHECKSUM TABLE t2`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -554,23 +390,7 @@ if ($t2_checksum != `CHECKSUM TABLE t2`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -585,23 +405,7 @@ if ($t2_checksum != `CHECKSUM TABLE t2`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't1'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -620,19 +424,7 @@ if ($t2_checksum != `CHECKSUM TABLE t2`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t3','t4','t5','t6')`)
 {
     die $table_exists_error;
 }
@@ -651,19 +443,7 @@ if ($t2_checksum != `CHECKSUM TABLE t2`)
 {
     die $table_inconsistent_err;
 }
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't3'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't4'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't5'`)
-{
-    die $table_exists_error;
-}
-if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't6'`)
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t3','t4','t5','t6')`)
 {
     die $table_exists_error;
 }
