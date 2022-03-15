@@ -8265,6 +8265,9 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     if (!grant_table && !grant_table_role)
     {
+      if (any_combination_will_do && t_ref->grant.privilege & want_access)
+        continue;
+
       want_access&= ~t_ref->grant.privilege;
       goto err;					// No grants
     }

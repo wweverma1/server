@@ -4359,11 +4359,21 @@ int create_table_impl(THD *thd,
 
     if (ha_table_exists(thd, &orig_db, &orig_table_name, NULL, NULL, NULL))
     {
-      warning_given= 1;
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_TABLE_EXISTS_ERROR,
-                          ER_THD(thd, ER_TABLE_EXISTS_ERROR),
-                          orig_table_name.str);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      TABLE_LIST table_acl_check;
+      bzero((char*) &table_acl_check, sizeof(table_acl_check));
+      table_acl_check.db= orig_db;
+      table_acl_check.table_name= orig_table_name;
+      if (!check_table_access(thd, TABLE_ACLS, &table_acl_check, true, 1, true))
+        warning_given= 1;
+#else
+      warning_given=1;
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
+      if (warning_given)
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                              ER_TABLE_EXISTS_ERROR,
+                              ER_THD(thd, ER_TABLE_EXISTS_ERROR),
+                              orig_table_name.str);
     }
   }
 
