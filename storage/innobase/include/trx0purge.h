@@ -286,8 +286,9 @@ public:
 
   /** Stop the purge thread and check n_ref_count of all auxiliary
   and common table associated with the fts table.
-  @param table	parent FTS table */
-  void stop_FTS(const dict_table_t &table);
+  @param table		parent FTS table
+  @param stop_fts	stop the purge thread for fts tables */
+  void stop_FTS(const dict_table_t &table, bool stop_fts=true);
 };
 
 /** The global data structure coordinating a purge */
