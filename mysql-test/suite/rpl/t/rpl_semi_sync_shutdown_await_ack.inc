@@ -112,16 +112,16 @@ show status like 'Rpl_semi_sync_master_no_tx';
 --echo #-- Re-synchronize slaves with master and disable semi-sync
 
 --echo #-- Stop slaves
---let i= 2
-while (`SELECT $i <= $slave_last`)
-{
-  --connection server_$i
-  SET @@GLOBAL.debug_dbug="";
-  --eval SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0
-  source include/stop_slave.inc;
 
-  --inc $i
-}
+--connection server_2
+--eval SET @@GLOBAL.debug_dbug= "$sav_server_2_dbug"
+--eval SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0
+source include/stop_slave.inc;
+
+--connection server_3
+--eval SET @@GLOBAL.debug_dbug= "$sav_server_3_dbug"
+--eval SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0
+source include/stop_slave.inc;
 
 --echo #-- Bring the master back up
 --connection server_1_con2
@@ -140,7 +140,7 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-SET @@GLOBAL.debug_dbug= "";
+--eval SET @@GLOBAL.debug_dbug= "$sav_master_dbug"
 let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 0;
 source include/wait_for_status_var.inc;

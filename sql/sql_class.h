@@ -4837,8 +4837,9 @@ public:
 
   void set_awaiting_semisync_ack(bool status)
   {
-    mysql_mutex_assert_owner(&LOCK_thd_data);
+    mysql_mutex_lock(&LOCK_thd_data);
     awaiting_semisync_ack= status;
+    mysql_mutex_unlock(&LOCK_thd_data);
   }
 
   int register_slave(uchar *packet, size_t packet_length);

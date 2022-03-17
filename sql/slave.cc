@@ -4522,7 +4522,6 @@ pthread_handler_t handle_slave_io(void *arg)
   uint retry_count;
   bool suppress_warnings;
   int ret;
-  int err_stopping_semisync;
   rpl_io_thread_info io_info;
 #ifndef DBUG_OFF
   mi->dbug_do_disconnect= false;
@@ -4923,7 +4922,7 @@ err:
                           tmp.c_ptr_safe());
     sql_print_information("master was %s:%d", mi->host, mi->port);
   }
-  err_stopping_semisync= repl_semisync_slave.slave_stop(mi);
+  repl_semisync_slave.slave_stop(mi);
   thd->reset_query();
   thd->reset_db(&null_clex_str);
   if (mysql)
@@ -4939,22 +4938,6 @@ err:
 #ifdef SIGNAL_WITH_VIO_CLOSE
     thd->clear_active_vio();
 #endif
-    /*
-      If repl_semisync_slave.slave_stop() fails, e.g. if the master force
-      killed the kill_mysql connection due to it actively shutting down, we
-      need to locally clean up our side of the connection before calling
-      mysql_close. This is because mysql_close will send COM_QUIT on the
-      current connection, which the master still assumes is semisync, and
-      will thereby error.
-    */
-    if (err_stopping_semisync)
-    {
-      sql_print_information(
-          "Failed to gracefully kill our active semi-sync connection with "
-          "primary. Silently closing the connection.");
-      net_clear(&(mysql->net),0);
-      end_server(mysql);
-    }
     mysql_close(mysql);
     mi->mysql=0;
   }

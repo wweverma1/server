@@ -1062,7 +1062,13 @@ retry:
         DBUG_DUMP("packet_header", net->buff+net->where_b,
                   NET_HEADER_SIZE);
 #endif
-	if (net->buff[net->where_b + 3] != (uchar) net->pkt_nr)
+
+        /*
+          If the server kills the connection on its end, it can send an
+          out-of-order (i.e. pkt_nr will always be 1) notification
+        */
+        if (net->buff[net->where_b + 3] != (uchar) net->pkt_nr &&
+            (vio_is_connected(net->vio) || net->buff[net->where_b + 3] != 1))
         {
 #ifndef MYSQL_SERVER
           if (net->buff[net->where_b + 3] == (uchar) (net->pkt_nr -1))

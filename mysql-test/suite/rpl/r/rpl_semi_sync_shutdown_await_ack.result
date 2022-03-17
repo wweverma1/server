@@ -7,6 +7,7 @@ include/rpl_init.inc [topology=1->2, 1->3]
 connection server_1;
 # Slaves which simulate an error will produce a timeout on the primary
 call mtr.add_suppression("Timeout waiting");
+call mtr.add_suppression("did not exit");
 # Suppress slave errors related to the simulated error
 connection server_2;
 call mtr.add_suppression("reply failed");
@@ -109,11 +110,11 @@ count(*)=1
 #-- Re-synchronize slaves with master and disable semi-sync
 #-- Stop slaves
 connection server_2;
-SET @@GLOBAL.debug_dbug="";
+SET @@GLOBAL.debug_dbug= "";
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
 include/stop_slave.inc
 connection server_3;
-SET @@GLOBAL.debug_dbug="";
+SET @@GLOBAL.debug_dbug= "";
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
 include/stop_slave.inc
 #-- Bring the master back up
@@ -226,11 +227,11 @@ count(*)=0
 #-- Re-synchronize slaves with master and disable semi-sync
 #-- Stop slaves
 connection server_2;
-SET @@GLOBAL.debug_dbug="";
+SET @@GLOBAL.debug_dbug= "";
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
 include/stop_slave.inc
 connection server_3;
-SET @@GLOBAL.debug_dbug="";
+SET @@GLOBAL.debug_dbug= "";
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
 include/stop_slave.inc
 #-- Bring the master back up
@@ -344,11 +345,11 @@ count(*)=1
 #-- Re-synchronize slaves with master and disable semi-sync
 #-- Stop slaves
 connection server_2;
-SET @@GLOBAL.debug_dbug="";
+SET @@GLOBAL.debug_dbug= "";
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
 include/stop_slave.inc
 connection server_3;
-SET @@GLOBAL.debug_dbug="";
+SET @@GLOBAL.debug_dbug= "";
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
 include/stop_slave.inc
 #-- Bring the master back up
@@ -468,11 +469,134 @@ count(*)=1
 #-- Re-synchronize slaves with master and disable semi-sync
 #-- Stop slaves
 connection server_2;
-SET @@GLOBAL.debug_dbug="";
+SET @@GLOBAL.debug_dbug= "";
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
 include/stop_slave.inc
 connection server_3;
-SET @@GLOBAL.debug_dbug="";
+SET @@GLOBAL.debug_dbug= "";
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
+include/stop_slave.inc
+#-- Bring the master back up
+connection server_1_con2;
+connection default;
+connection server_1;
+SET @@GLOBAL.debug_dbug= "";
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
+show status like 'Rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	OFF
+TRUNCATE TABLE t1;
+#-- Bring slaves back up
+connection server_2;
+include/start_slave.inc
+show status like 'Rpl_semi_sync_slave_status';
+Variable_name	Value
+Rpl_semi_sync_slave_status	OFF
+SELECT COUNT(*)=0 from t1;
+COUNT(*)=0
+1
+connection server_3;
+include/start_slave.inc
+show status like 'Rpl_semi_sync_slave_status';
+Variable_name	Value
+Rpl_semi_sync_slave_status	OFF
+SELECT COUNT(*)=0 from t1;
+COUNT(*)=0
+1
+#
+# Test Case 5) Similar to test case 4; however, this test validates the
+# case when the primary kills the new connection during authentication.
+# Specifically, if the primary is shutting down while simultaneously
+# accepting a new connection, if the new connection is killed during
+# authentication, the primary will send a packet to the replica
+# notifying it that it has killed the connection. The packet number will
+# always be 1, which will conflict with the expected packet number. This
+# test ensures that the replica can handle an error packet during
+# connection authentication.
+#
+connection server_1;
+#--
+#-- Semi-sync Setup
+connection server_1;
+#-- Enable semi-sync on slaves
+let slave_last= 3
+connection server_2;
+set global rpl_semi_sync_slave_enabled = 1;
+include/stop_slave.inc
+include/start_slave.inc
+show status like 'Rpl_semi_sync_slave_status';
+Variable_name	Value
+Rpl_semi_sync_slave_status	ON
+connection server_3;
+set global rpl_semi_sync_slave_enabled = 1;
+include/stop_slave.inc
+include/start_slave.inc
+show status like 'Rpl_semi_sync_slave_status';
+Variable_name	Value
+Rpl_semi_sync_slave_status	ON
+#-- Enable semi-sync on master
+connection server_1;
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+set @@global.rpl_semi_sync_master_timeout= 1600;
+#-- Wait for master to recognize semi-sync slaves
+connection server_1;
+#-- Master should have semi-sync enabled with 2 connections
+show status like 'Rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	ON
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	2
+#-- Prepare servers to simulate delay or error
+connection server_1;
+SET @@GLOBAL.debug_dbug= "+d,mysqld_delay_kill_threads_phase_1";
+connection server_2;
+SET @@GLOBAL.debug_dbug= "+d,corrupt_queue_event,client_delay_run_plugin_auth";
+connection server_3;
+SET @@GLOBAL.debug_dbug= "+d,simulate_delay_semisync_slave_reply";
+#--
+#-- Test begins
+connection server_1;
+#-- Begin semi-sync transaction
+INSERT INTO t1 VALUES (1);
+connection server_1_con2;
+#-- Wait until master recognizes a connection is awaiting semi-sync ACK
+show status like 'Rpl_semi_sync_master_wait_sessions';
+Variable_name	Value
+Rpl_semi_sync_master_wait_sessions	1
+#-- Give enough time after timeout/ack received to query yes_tx/no_tx
+SET @@GLOBAL.debug_dbug= "+d,delay_shutdown_phase_2_after_semisync_wait";
+#-- Begin master shutdown
+SHUTDOWN WAIT FOR ALL SLAVES;
+connection server_1;
+#-- Ensure either ACK was received (yes_tx=1) or timeout (no_tx=1)
+show status like 'Rpl_semi_sync_master_yes_tx';
+Variable_name	Value
+Rpl_semi_sync_master_yes_tx	1
+show status like 'Rpl_semi_sync_master_no_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+connection server_1_con2;
+# Check logs to ensure shutdown was delayed
+FOUND 5 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
+# Validate slave data is in correct state
+connection server_2;
+select count(*)=0 from t1;
+count(*)=0
+1
+connection server_3;
+select count(*)=1 from t1;
+count(*)=1
+1
+#
+#-- Re-synchronize slaves with master and disable semi-sync
+#-- Stop slaves
+connection server_2;
+SET @@GLOBAL.debug_dbug= "";
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
+include/stop_slave.inc
+connection server_3;
+SET @@GLOBAL.debug_dbug= "";
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
 include/stop_slave.inc
 #-- Bring the master back up

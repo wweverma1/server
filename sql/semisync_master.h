@@ -472,6 +472,8 @@ class Repl_semi_sync_master
     m_wait_timeout = wait_timeout;
   }
 
+  int sync_get_master_wait_sessions();
+
   /*
     Calculates a timeout that is m_wait_timeout after start_arg and saves it
     in out. If start_arg is NULL, the timeout is m_wait_timeout after the

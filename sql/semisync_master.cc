@@ -463,6 +463,15 @@ void Repl_semi_sync_master::cleanup()
   delete m_active_tranxs;
 }
 
+int Repl_semi_sync_master::sync_get_master_wait_sessions()
+{
+  int wait_sessions;
+  lock();
+  wait_sessions= rpl_semi_sync_master_wait_sessions;
+  unlock();
+  return wait_sessions;
+}
+
 void Repl_semi_sync_master::create_timeout(struct timespec *out,
                                            struct timespec *start_arg)
 {
@@ -891,15 +900,13 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
        * Let us suspend this thread to wait on the condition;
        * when replication has progressed far enough, we will release
        * these waiting threads.
-       *
-       * Additionally, the thread state and system variable which represent
-       * this suspended thread need to be synchronized to ensure this thread is
-       * not immediately killed while awaiting the ACK if a shutdown is issued.
        */
-      mysql_mutex_lock(&thd->LOCK_thd_data);
       rpl_semi_sync_master_wait_sessions++;
+
+      /* We keep track of when this thread is awaiting an ack to ensure it is
+       * not killed while awaiting an ACK if a shutdown is issued.
+       */
       thd->set_awaiting_semisync_ack(TRUE);
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
 
       DBUG_PRINT("semisync", ("%s: wait %lu ms for binlog sent (%s, %lu)",
                               "Repl_semi_sync_master::commit_trx",
@@ -909,10 +916,8 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
       create_timeout(&abstime, &start_ts);
       wait_result = cond_timewait(&abstime);
 
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      rpl_semi_sync_master_wait_sessions--;
       thd->set_awaiting_semisync_ack(FALSE);
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      rpl_semi_sync_master_wait_sessions--;
 
       if (wait_result != 0)
       {

@@ -42,6 +42,16 @@
 #                send a `QUIT` in this case (Rpl_semi_sync_master_yes_tx should
 #                be 1 because server_3 will send the ACK within a valid
 #                timeout).
+#   Test Case 5) Similar to test case 4; however, this test validates the case
+#                when the primary kills the new connection during
+#                authentication. Specifically, if the primary is shutting down
+#                while simultaneously accepting a new connection, if the new
+#                connection is killed during authentication, the primary will
+#                send a packet to the replica notifying it that it has killed
+#                the connection. The packet number will always be 1, which
+#                will conflict with the expected packet number. This test
+#                ensures that the replica can handle an error packet during
+#                connection authentication.
 #
 # References:
 #   MDEV-11853: semisync thread can be killed after sync binlog but before ACK
@@ -63,6 +73,7 @@
 
 --echo # Slaves which simulate an error will produce a timeout on the primary
 call mtr.add_suppression("Timeout waiting");
+call mtr.add_suppression("did not exit");
 
 --let $sav_master_timeout= `SELECT @@global.rpl_semi_sync_master_timeout`
 --let $sav_enabled_master= `SELECT @@GLOBAL.rpl_semi_sync_master_enabled`
@@ -167,6 +178,32 @@ while (`SELECT $i <= $slave_last`)
 # slave_delay_killing_semisync_connection ensures that the primary has force
 # killed its current connection before it is able to issue `KILL`
 --let server_2_dbug= "+d,corrupt_queue_event,slave_delay_killing_semisync_connection"
+--let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
+--let semisync_timeout= 1600
+--let server_2_expect_row_count= 0
+--let server_3_expect_row_count= 1
+--source rpl_semi_sync_shutdown_await_ack.inc
+
+--echo #
+--echo # Test Case 5) Similar to test case 4; however, this test validates the
+--echo # case when the primary kills the new connection during authentication.
+--echo # Specifically, if the primary is shutting down while simultaneously
+--echo # accepting a new connection, if the new connection is killed during
+--echo # authentication, the primary will send a packet to the replica
+--echo # notifying it that it has killed the connection. The packet number will
+--echo # always be 1, which will conflict with the expected packet number. This
+--echo # test ensures that the replica can handle an error packet during
+--echo # connection authentication.
+--echo #
+
+# mysqld_delay_kill_threads_phase1 ensures that server_2 will have enough time
+# to start a new connection that has the intent to kill the active semi-sync
+# connection
+--let server_1_dbug= "+d,mysqld_delay_kill_threads_phase_1"
+
+# slave_delay_killing_semisync_connection ensures that the primary has force
+# killed its current connection before it is able to issue `KILL`
+--let server_2_dbug= "+d,corrupt_queue_event,client_delay_run_plugin_auth"
 --let server_3_dbug= "+d,simulate_delay_semisync_slave_reply"
 --let semisync_timeout= 1600
 --let server_2_expect_row_count= 0

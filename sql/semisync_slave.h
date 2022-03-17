@@ -23,6 +23,7 @@
 #include "sql_priv.h"
 #include "rpl_mi.h"
 #include "mysql.h"
+#include <sql_common.h>
 
 class Master_info;
 
@@ -90,7 +91,7 @@ public:
   int slave_start(Master_info *mi);
   int slave_stop(Master_info *mi);
   int request_transmit(Master_info*);
-  int kill_connection(MYSQL *mysql);
+  void kill_connection(MYSQL *mysql);
   int reset_slave(Master_info *mi);
 
 private:
