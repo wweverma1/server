@@ -1309,5 +1309,11 @@ SET @json='{
 SELECT JSON_KEYS(@json, '$.A[8][1 to 3]');
 
 --echo #
---echo # End of 10.9 Test
+--echo # json parser and quoted keys that start with "t"
+--echo #
+SELECT JSON_EXTRACT('{"foo":"bar"}', '$.f."a"' );
+SELECT JSON_EXTRACT('{"foo":"bar"}', '$.f."t"' );
+
+--echo #
+--echo # End of 10.9 test
 --echo #

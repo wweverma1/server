@@ -1895,5 +1895,14 @@ NULL
 Warnings:
 Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_keys'
 #
-# End of 10.9 Test
+# json parser and quoted keys that start with "t"
+#
+SELECT JSON_EXTRACT('{"foo":"bar"}', '$.f."a"' );
+JSON_EXTRACT('{"foo":"bar"}', '$.f."a"' )
+NULL
+SELECT JSON_EXTRACT('{"foo":"bar"}', '$.f."t"' );
+JSON_EXTRACT('{"foo":"bar"}', '$.f."t"' )
+NULL
+#
+# End of 10.9 test
 #
