@@ -14,6 +14,8 @@ DROP TABLE t1;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 CREATE TEMPORARY TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+Warnings:
+Note	1050	Table 't1' already exists
 INSERT INTO t1 VALUES (2);
 SELECT f1 = 2 FROM t1;
 f1 = 2
@@ -54,6 +56,8 @@ connection node_1;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 CREATE TEMPORARY TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+Warnings:
+Note	1050	Table 't1' already exists
 INSERT INTO t1 VALUES (2);
 connection node_2;
 TRUNCATE TABLE t1;
