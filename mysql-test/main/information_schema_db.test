@@ -1,18 +1,10 @@
 # this test mostly test privilege control (what doesn't work
 # in the embedded server by default). So skip the test in embedded-server mode.
 -- source include/not_embedded.inc
-
 -- source include/testdb_only.inc
 
 set local sql_mode="";
 set global sql_mode="";
-
---disable_warnings
-drop table if exists t1,t2;
-drop view if exists v1,v2;
-drop function if exists f1;
-drop function if exists f2;
---enable_warnings
 
 --replace_result 'Tables_in_INFORMATION_SCHEMA (T%)' 'Tables_in_information_schema (T%)'
 --sorted_result
@@ -298,3 +290,57 @@ disconnect foo;
 drop view v1d, v1i, v2d, v2i, v3d, v3i, v4d, v4i, v5d, v5i;
 drop user foo@localhost;
 drop procedure rootonly;
+
+--echo #
+--echo # MDEV-12459: The information_schema tables for getting temporary tables
+--echo #             info is missing, at least for innodb, there is no
+--echo #             INNODB_TEMP_TABLE_INFO
+--echo #
+
+--echo # -------------------------------
+--echo # Test shadowing of a base table
+--echo # -------------------------------
+
+create database some_db;
+
+# Create user without any privileges
+create user foo@localhost identified by 'bar';
+grant create temporary tables on some_db.* to foo@localhost;
+
+use some_db;
+--echo # Test the warning is raised
+create table t(t int);
+# This should give warning, since the user can see the table and the name of a
+# temporary table in the same connection is shadowing the base table name
+create temporary table t(t int);
+
+--echo # Test shadowing of the base table for user with no privileges - no warning
+connect (con2,localhost,foo,bar,some_db,,);
+show grants for current_user();
+show tables;
+# User has no grants and cannot see `test.t` and below shouldn't raise any warning
+create temporary table some_db.t(t int);
+show warnings;
+show create table t;
+disconnect con2;
+
+--echo # Give the privileges to the user
+connection default;
+grant all privileges on *.* to foo@localhost with grant option;
+
+--echo # Test shadowing of the base table for user that has valid privileges - warning
+connect (con2,localhost,foo,bar,some_db,,);
+show grants for current_user();
+show tables;
+# The same test as above, but now the user has grants and should see the warning
+create temporary table t(t int);
+show create table t;
+show warnings;
+disconnect con2;
+connection default;
+
+drop table t;
+drop table t;
+drop user foo@localhost;
+drop database some_db;
+use test;

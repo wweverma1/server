@@ -1,9 +1,5 @@
 set local sql_mode="";
 set global sql_mode="";
-drop table if exists t1,t2;
-drop view if exists v1,v2;
-drop function if exists f1;
-drop function if exists f2;
 show tables from INFORMATION_SCHEMA like 'T%';
 Tables_in_information_schema (T%)
 TABLES
@@ -325,3 +321,66 @@ disconnect foo;
 drop view v1d, v1i, v2d, v2i, v3d, v3i, v4d, v4i, v5d, v5i;
 drop user foo@localhost;
 drop procedure rootonly;
+#
+# MDEV-12459: The information_schema tables for getting temporary tables
+#             info is missing, at least for innodb, there is no
+#             INNODB_TEMP_TABLE_INFO
+#
+# -------------------------------
+# Test shadowing of a base table
+# -------------------------------
+create database some_db;
+create user foo@localhost identified by 'bar';
+grant create temporary tables on some_db.* to foo@localhost;
+use some_db;
+# Test the warning is raised
+create table t(t int);
+create temporary table t(t int);
+Warnings:
+Note	1050	Table 't' already exists
+# Test shadowing of the base table for user with no privileges - no warning
+connect  con2,localhost,foo,bar,some_db,,;
+show grants for current_user();
+Grants for foo@localhost
+GRANT USAGE ON *.* TO `foo`@`localhost` IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
+GRANT CREATE TEMPORARY TABLES ON `some_db`.* TO `foo`@`localhost`
+show tables;
+Tables_in_some_db
+create temporary table some_db.t(t int);
+show warnings;
+Level	Code	Message
+show create table t;
+Table	Create Table
+t	CREATE TEMPORARY TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+disconnect con2;
+# Give the privileges to the user
+connection default;
+grant all privileges on *.* to foo@localhost with grant option;
+# Test shadowing of the base table for user that has valid privileges - warning
+connect  con2,localhost,foo,bar,some_db,,;
+show grants for current_user();
+Grants for foo@localhost
+GRANT ALL PRIVILEGES ON *.* TO `foo`@`localhost` IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB' WITH GRANT OPTION
+GRANT CREATE TEMPORARY TABLES ON `some_db`.* TO `foo`@`localhost`
+show tables;
+Tables_in_some_db
+t
+create temporary table t(t int);
+Warnings:
+Note	1050	Table 't' already exists
+show create table t;
+Table	Create Table
+t	CREATE TEMPORARY TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show warnings;
+Level	Code	Message
+disconnect con2;
+connection default;
+drop table t;
+drop table t;
+drop user foo@localhost;
+drop database some_db;
+use test;
