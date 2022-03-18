@@ -78,7 +78,7 @@ connection slave;
 # Asserted this: Seconds_Behind_Master should be at least 2*T
 ==== STOP SLAVE / START SLAVE + DML ====
 include/stop_slave.inc
-# CHANGE MASTER TO MASTER_DELAY = 3*T
+# CHANGE MASTER TO MASTER_DELAY = (a very long time)
 include/start_slave.inc
 [on master]
 connection master;
