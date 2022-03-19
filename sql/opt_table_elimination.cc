@@ -33,6 +33,8 @@
 #include "sql_select.h"
 #include "opt_trace.h"
 #include "my_json_writer.h"
+#include <vector>
+#include <algorithm>
 
 /*
   OVERVIEW
@@ -472,10 +474,10 @@ class Dep_module_synthetic_key : public Dep_module
 {
 public:
   Dep_module_synthetic_key(Dep_value_table *table_arg,
-                           std::vector<int>&& field_indexes)
+                           std::vector<field_index_t>&& field_indexes)
       : table(table_arg), derived_table_field_indexes(field_indexes)
   {
-    unbound_args= field_indexes.size();
+    unbound_args= static_cast<uint>(field_indexes.size());
   }
 
   Dep_value_table * table;
@@ -490,7 +492,7 @@ public:
      (numeration starts from 0). Field "t12.b" is not included since
      though it's present in the GROUP BY list but is missing in the SELECT list
   */
-  std::vector<int> derived_table_field_indexes;
+  std::vector<field_index_t> derived_table_field_indexes;
 
   Iterator init_unbound_values_iter(char *buf) override;
   
@@ -1692,7 +1694,7 @@ Dep_analysis_context::create_table_value(TABLE_LIST *table_list)
     /* Make sure GROUP BY elements contain only fields
      and no functions or other expressions */
     bool valid= TRUE;
-    std::vector<int> exposed_fields_indexes;
+    std::vector<field_index_t> exposed_fields_indexes;
     for (auto cur_group= first_select->group_list.first;
          cur_group;
          cur_group= cur_group->next)
@@ -1944,7 +1946,7 @@ Dep_module* Dep_value_field::get_next_unbound_module(Dep_analysis_context *dac,
   if (synth_key_dep && !synth_key_dep->is_applicable() &&
     std::find(synth_key_dep->derived_table_field_indexes.begin(),
       synth_key_dep->derived_table_field_indexes.end(),
-      field->field_index) != synth_key_dep->derived_table_field_indexes.end())
+      field->field_index) != std::end(synth_key_dep->derived_table_field_indexes))
   {
     di->synth_key_dep= NULL;
     return synth_key_dep;
@@ -1984,7 +1986,7 @@ static void mark_as_eliminated(JOIN *join, TABLE_LIST *tbl,
   TABLE *table;
   /*
     NOTE: there are TABLE_LIST object that have
-    tbl->table!= NULL && tbl->nested_join!=NULL and 
+    tbl->table!= NULL && tbl->nested_join!=NULL and
     tbl->table == tbl->nested_join->join_list->element(..)->table
   */
   if (tbl->nested_join)
@@ -2011,8 +2013,9 @@ static void mark_as_eliminated(JOIN *join, TABLE_LIST *tbl,
 
   if (tbl->on_expr)
     tbl->on_expr->walk(&Item::mark_as_eliminated_processor, FALSE, NULL);
+  if (tbl->derived)
+    tbl->mark_derived_as_eliminated();
 }
-
 
 #ifndef DBUG_OFF
 /* purecov: begin inspected */

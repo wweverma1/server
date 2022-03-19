@@ -2872,6 +2872,9 @@ struct TABLE_LIST
     }
   }
 
+  void mark_derived_as_eliminated() { m_is_derived_eliminated= true; }
+  bool is_derived_eliminated() const { return m_is_derived_eliminated; }
+
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);
@@ -2885,6 +2888,7 @@ private:
   enum enum_table_ref_type m_table_ref_type;
   /** See comments for set_table_ref_id() */
   ulong m_table_ref_version;
+  bool m_is_derived_eliminated= false;
 };
 
 class Item;
