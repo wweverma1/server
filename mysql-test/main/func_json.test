@@ -1306,6 +1306,18 @@ SET @json='{
            }';
 SELECT JSON_KEYS(@json, '$.A[8][1 to 3]');
 
+
+--echo #
+--echo # MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in
+--echo # json path (when range is used)
+--echo #
+
+SET @json= '[ 11, 22 , 33]';
+SELECT JSON_EXTRACT(@json, '$[0 to 0]');
+SELECT JSON_EXTRACT(@json, '$[0 to -0]');
+SELECT JSON_EXTRACT(@json, '$[-0 to 0]');
+SELECT JSON_EXTRACT(@json, '$[-0 to -0]');
+
 --echo #
 --echo # End of 10.9 Test
 --echo #

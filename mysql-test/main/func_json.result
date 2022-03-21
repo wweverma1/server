@@ -1893,5 +1893,22 @@ NULL
 Warnings:
 Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_keys'
 #
+# MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in
+# json path (when range is used)
+#
+SET @json= '[ 11, 22 , 33]';
+SELECT JSON_EXTRACT(@json, '$[0 to 0]');
+JSON_EXTRACT(@json, '$[0 to 0]')
+[11]
+SELECT JSON_EXTRACT(@json, '$[0 to -0]');
+JSON_EXTRACT(@json, '$[0 to -0]')
+[11]
+SELECT JSON_EXTRACT(@json, '$[-0 to 0]');
+JSON_EXTRACT(@json, '$[-0 to 0]')
+[11]
+SELECT JSON_EXTRACT(@json, '$[-0 to -0]');
+JSON_EXTRACT(@json, '$[-0 to -0]')
+[11]
+#
 # End of 10.9 Test
 #
