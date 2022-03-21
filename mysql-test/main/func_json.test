@@ -1307,5 +1307,27 @@ SET @json='{
 SELECT JSON_KEYS(@json, '$.A[8][1 to 3]');
 
 --echo #
+--echo # MDEV-28075: JSON_VALUE returns first value from array not from range
+--echo #
+
+SET @json1= '[
+             [{"key1": "value1"}, {"key2": "value2"}],
+             [{"key3": "value3"}, {"key1": "value4"}],
+             [{"key1": "value5"}, {"key4": "value6"}, {"key1": "value7"}]
+            ]';
+SELECT JSON_VALUE(@json1, '$[2][1 to 2].key1');
+
+
+SET @json= '[
+             [1.1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [11, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20]
+            ]';
+SELECT JSON_VALUE(@json, '$[*][0]');
+SELECT JSON_VALUE(@json, '$[2 to 3][0]');
+
+--echo #
 --echo # End of 10.9 Test
 --echo #
