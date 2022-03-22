@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,15 +24,15 @@ Modification log for online index creation and online table rebuild
 Created 2011-05-26 Marko Makela
 *******************************************************/
 
-#ifndef row0log_h
-#define row0log_h
+#pragma once
 
 #include "que0types.h"
 #include "mtr0types.h"
 #include "row0types.h"
 #include "rem0types.h"
-#include "data0types.h"
+#include "dict0dict.h"
 #include "trx0types.h"
+#include "trx0undo.h"
 
 class ut_stage_alter_t;
 
@@ -74,27 +74,15 @@ row_log_free(
 
 /******************************************************//**
 Free the row log for an index on which online creation was aborted. */
-UNIV_INLINE
-void
-row_log_abort_sec(
-/*==============*/
-	dict_index_t*	index)	/*!< in/out: index (x-latched) */
-	MY_ATTRIBUTE((nonnull));
+inline void row_log_abort_sec(dict_index_t *index)
+{
+  ut_ad(index->lock.have_u_or_x());
+  ut_ad(!index->is_clust());
+  dict_index_set_online_status(index, ONLINE_INDEX_ABORTED);
+  row_log_free(index->online_log);
+  index->online_log= nullptr;
+}
 
-/******************************************************//**
-Try to log an operation to a secondary index that is
-(or was) being created.
-@retval true if the operation was logged or can be ignored
-@retval false if online index creation is not taking place */
-UNIV_INLINE
-bool
-row_log_online_op_try(
-/*==================*/
-	dict_index_t*	index,	/*!< in/out: index, S or X latched */
-	const dtuple_t* tuple,	/*!< in: index tuple */
-	trx_id_t	trx_id)	/*!< in: transaction ID for insert,
-				or 0 for delete */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /******************************************************//**
 Logs an operation to a secondary index that is (or was) being created. */
 void
@@ -118,7 +106,7 @@ row_log_table_get_error(
 
 /** Check whether a virtual column is indexed in the new table being
 created during alter table
-@param[in]	index	cluster index
+@param[in]	index	clustered index
 @param[in]	v_no	virtual column number
 @return true if it is indexed, else false */
 bool
@@ -193,14 +181,6 @@ row_log_table_blob_free(
 	dict_index_t*	index,	/*!< in/out: clustered index, X-latched */
 	ulint		page_no)/*!< in: starting page number of the BLOB */
 	ATTRIBUTE_COLD __attribute__((nonnull));
-/******************************************************//**
-Notes that a BLOB is being allocated during online ALTER TABLE. */
-void
-row_log_table_blob_alloc(
-/*=====================*/
-	dict_index_t*	index,	/*!< in/out: clustered index, X-latched */
-	ulint		page_no)/*!< in: starting page number of the BLOB */
-	ATTRIBUTE_COLD __attribute__((nonnull));
 
 /** Apply the row_log_table log to a table upon completing rebuild.
 @param[in]	thr		query graph
@@ -261,8 +241,26 @@ of an ALTER TABLE for this index.
 ulint
 row_log_estimate_work(
 	const dict_index_t*	index);
+
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
-#include "row0log.inl"
+/** Handle the insert undo log and apply it on online indexes
+@param	tuple		row reference from undo log record
+@param	rec_info	undo log record info
+@param	clust_index	clustered index
+@param	heap		memory heap */
+void row_log_insert_handle(const dtuple_t *tuple,
+                           const trx_undo_rec_info *rec_info,
+                           dict_index_t *clust_index,
+                           mem_heap_t *heap);
 
-#endif /* row0log.h */
+/** Handle the update, delete undo log and apply it on online
+indexes
+@param	tuple		row reference from undo log record
+@param	rec_info	undo log record info
+@param	clust_index	clustered index
+@param	heap		memory heap */
+void row_log_update_handle(const dtuple_t *tuple,
+                           const trx_undo_rec_info *rec_info,
+                           dict_index_t *clust_index,
+                           mem_heap_t *heap);
