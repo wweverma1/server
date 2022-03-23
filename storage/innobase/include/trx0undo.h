@@ -330,7 +330,7 @@ struct trx_undo_t {
 /** Undo record information like rollback segment id, page_id, offset */
 struct trx_undo_rec_info
 {
-  trx_id_t trx_id;
+  const trx_t *trx;
   buf_block_t *block;
   ulint offset;
   ulint type;
@@ -340,9 +340,9 @@ struct trx_undo_rec_info
   trx_undo_rec_t *undo_rec;
   upd_t *update= nullptr;
 
-  trx_undo_rec_info(trx_id_t trx_id_, buf_block_t *block_,
+  trx_undo_rec_info(const trx_t *trx_, buf_block_t *block_,
                     ulint offset_):
-                    trx_id(trx_id_), block(block_), offset(offset_) {}
+                    trx(trx_), block(block_), offset(offset_) {}
 
   void assign_value(ulint type_, ulint cmpl_info_, bool updated_ext,
                     undo_no_t undo_no_)

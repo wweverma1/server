@@ -11016,43 +11016,6 @@ lock_fail:
 				continue;
 			}
 
-			for (ulint i = 0; i < ctx->num_to_add_index; i++) {
-				dict_index_t *index= ctx->add_index[i];
-
-				if (index->type & (DICT_FTS | DICT_SPATIAL))
-                                  continue;
-
-				index->lock.x_lock(SRW_LOCK_CALL);
-				ut_ad(index->online_log);
-
-				dberr_t error = row_log_apply(
-					m_prebuilt->trx, index, altered_table,
-					ctx->m_stage);
-
-				if (error != DB_SUCCESS) {
-					ctx->log_handle_failure(
-						ha_alter_info,
-						altered_table, error);
-					row_log_free(index->online_log);
-					index->online_log= nullptr;
-					index->lock.x_unlock();
-
-					ctx->old_table->indexes.start->clear_dummy_log();
-					if (fts_exist) {
-						purge_sys.resume_FTS();
-					}
-					MONITOR_ATOMIC_INC(
-						MONITOR_BACKGROUND_DROP_INDEX);
-					DBUG_RETURN(true);
-				}
-
-				row_log_free(index->online_log);
-				index->online_log= nullptr;
-				dict_index_set_online_status(
-					index, ONLINE_INDEX_COMPLETE);
-				index->lock.x_unlock();
-			}
-
 			ctx->old_table->indexes.start->clear_dummy_log();
 		}
 	}

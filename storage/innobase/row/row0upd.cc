@@ -1271,9 +1271,7 @@ row_upd_changes_ord_field_binary_func(
 	ulint			i;
 	const dict_index_t*	clust_index;
 
-	ut_ad(thr);
-	ut_ad(thr->graph);
-	ut_ad(thr->graph->trx);
+	ut_ad(!thr || (thr->graph && thr->graph->trx));
 	ut_ad(!index->table->skip_alter_undo);
 
 	n_unique = dict_index_get_n_unique(index);
@@ -1473,9 +1471,11 @@ row_upd_changes_ord_field_binary_func(
 					trx_rollback_recovered()
 					when the server had crashed before
 					storing the field. */
-					ut_ad(thr->graph->trx->is_recovered);
-					ut_ad(thr->graph->trx
-					      == trx_roll_crash_recv_trx);
+					ut_ad(!thr
+					      || thr->graph->trx->is_recovered);
+					ut_ad(!thr
+					      || (thr->graph->trx
+					           == trx_roll_crash_recv_trx));
 					return(TRUE);
 				}
 
@@ -1897,9 +1897,6 @@ row_upd_sec_index_entry(
 	ut_ad(trx->id != 0);
 
 	index = node->index;
-	if (!index->is_committed()) {
-		return DB_SUCCESS;
-	}
 
 	/* For secondary indexes, index->online_status==ONLINE_INDEX_COMPLETE
 	if index->is_committed(). */
@@ -1943,6 +1940,57 @@ row_upd_sec_index_entry(
 			: referenced
 			? ulint(BTR_MODIFY_LEAF) : ulint(BTR_DELETE_MARK_LEAF);
 		break;
+	}
+
+	bool uncommitted = !index->is_committed();
+
+	if (uncommitted) {
+		/* The index->online_status may change if the index is
+		or was being created online, but not committed yet. It
+		is protected by index->lock. */
+
+		mtr_s_lock_index(index, &mtr);
+
+		switch (dict_index_get_online_status(index)) {
+		case ONLINE_INDEX_COMPLETE:
+			/* This is a normal index. Do not log anything.
+			Perform the update on the index tree directly. */
+			break;
+		case ONLINE_INDEX_CREATION:
+			/* fall through */
+		case ONLINE_INDEX_ABORTED:
+		case ONLINE_INDEX_ABORTED_DROPPED:
+			mtr_commit(&mtr);
+			goto func_exit;
+		}
+
+		/* We can only buffer delete-mark operations if there
+		are no foreign key constraints referring to the index.
+		Change buffering is disabled for temporary tables and
+		spatial index. */
+		mode = (referenced || index->table->is_temporary()
+			|| dict_index_is_spatial(index))
+			? BTR_MODIFY_LEAF_ALREADY_S_LATCHED
+			: BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED;
+	} else {
+		/* For secondary indexes,
+		index->online_status==ONLINE_INDEX_COMPLETE if
+		index->is_committed(). */
+		ut_ad(!dict_index_is_online_ddl(index));
+
+		/* We can only buffer delete-mark operations if there
+		are no foreign key constraints referring to the index.
+		Change buffering is disabled for temporary tables and
+		spatial index. */
+		mode = (referenced || index->table->is_temporary()
+			|| dict_index_is_spatial(index))
+		       ? BTR_MODIFY_LEAF
+		       : BTR_DELETE_MARK_LEAF;
+	}
+
+	if (dict_index_is_spatial(index)) {
+		ut_ad(mode & BTR_MODIFY_LEAF);
+		mode |= BTR_RTREE_DELETE_MARK;
 	}
 
 	/* Set the query thread, so that ibuf_insert_low() will be
@@ -2090,7 +2138,6 @@ Updates the secondary index record if it is changed in the row update or
 deletes it if this is a delete.
 @return DB_SUCCESS if operation successfully completed, else error
 code or DB_LOCK_WAIT */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_upd_sec_step(
 /*=============*/

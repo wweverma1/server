@@ -301,6 +301,12 @@ row_upd_step(
 /*=========*/
 	que_thr_t*	thr);	/*!< in: query thread */
 
+dberr_t
+row_upd_sec_step(
+/*=============*/
+	upd_node_t*	node,	/*!< in: row update node */
+	que_thr_t*	thr);	/*!< in: query thread */
+
 /* Update vector field */
 struct upd_field_t{
 	uint16_t	field_no;	/*!< field number in an index, usually

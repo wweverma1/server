@@ -2024,6 +2024,7 @@ row_ins_scan_sec_index_for_duplicate(
 	dict_index_t*	index,	/*!< in: non-clustered unique index */
 	dtuple_t*	entry,	/*!< in: index entry */
 	que_thr_t*	thr,	/*!< in: query thread */
+	bool		s_latch,/*!< in: whether index->lock is being held */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
 	mem_heap_t*	offsets_heap)
 				/*!< in/out: memory heap that can be emptied */
@@ -2040,7 +2041,7 @@ row_ins_scan_sec_index_for_duplicate(
 
 	rec_offs_init(offsets_);
 
-	ut_ad(!index->lock.have_any());
+	ut_ad(s_latch == (index->lock.have_u_not_x() || index->lock.have_s()));
 
 	n_unique = dict_index_get_n_unique(index);
 
@@ -2064,7 +2065,11 @@ row_ins_scan_sec_index_for_duplicate(
 
 	dtuple_set_n_fields_cmp(entry, n_unique);
 
-	btr_pcur_open(index, entry, PAGE_CUR_GE, BTR_SEARCH_LEAF, &pcur, mtr);
+	btr_pcur_open(index, entry, PAGE_CUR_GE,
+		      s_latch
+		      ? BTR_SEARCH_LEAF_ALREADY_S_LATCHED
+		      : BTR_SEARCH_LEAF,
+		      &pcur, mtr);
 
 	allow_duplicates = thr_get_trx(thr)->duplicates;
 
@@ -2796,19 +2801,52 @@ func_exit:
 	DBUG_RETURN(err);
 }
 
-/** Start a mini-transaction.
-@param[in,out]	mtr		mini-transaction
-@param[in,out]	index		secondary index */
-static void row_ins_sec_mtr_start(mtr_t *mtr, dict_index_t *index)
+/** Start a mini-transaction and check if the index will be dropped.
+@param[in,out]  mtr             mini-transaction
+@param[in,out]  index           secondary index
+@param[in]      check           whether to check
+@param[in]      search_mode     flags
+@return true if the index is to be dropped */
+static MY_ATTRIBUTE((warn_unused_result))
+bool
+row_ins_sec_mtr_start_and_check_if_aborted(
+	mtr_t*		mtr,
+	dict_index_t*	index,
+	bool		check,
+	ulint		search_mode)
 {
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(mtr->is_named_space(index->table->space));
 
-	const mtr_log_t	log_mode = mtr->get_log_mode();
+	const mtr_log_t log_mode = mtr->get_log_mode();
 
 	mtr->start();
 	index->set_modified(*mtr);
 	mtr->set_log_mode(log_mode);
+
+	if (!check) {
+		return(false);
+	}
+
+	if (search_mode & BTR_ALREADY_S_LATCHED) {
+		mtr_s_lock_index(index, mtr);
+	} else {
+		mtr_sx_lock_index(index, mtr);
+	}
+
+	switch (index->online_status) {
+	case ONLINE_INDEX_ABORTED:
+	case ONLINE_INDEX_ABORTED_DROPPED:
+		ut_ad(!index->is_committed());
+		return(true);
+	case ONLINE_INDEX_COMPLETE:
+		return(false);
+	case ONLINE_INDEX_CREATION:
+		break;
+	}
+
+	ut_error;
+	return(true);
 }
 
 /***************************************************************//**
@@ -2867,6 +2905,32 @@ row_ins_sec_index_entry_low(
 			search_mode |= BTR_INSERT;
 		}
 	}
+
+	/* Ensure that we acquire index->lock when inserting into an
+        index with index->online_status == ONLINE_INDEX_COMPLETE, but
+        could still be subject to rollback_inplace_alter_table().
+        This prevents a concurrent change of index->online_status.
+        The memory object cannot be freed as long as we have an open
+        reference to the table, or index->table->n_ref_count > 0. */
+        const bool      check = !index->is_committed();
+        if (check) {
+                DEBUG_SYNC_C("row_ins_sec_index_enter");
+                if (mode == BTR_MODIFY_LEAF) {
+                        search_mode |= BTR_ALREADY_S_LATCHED;
+                        mtr_s_lock_index(index, &mtr);
+                } else {
+                        mtr_sx_lock_index(index, &mtr);
+                }
+
+		switch (index->online_status) {
+		case ONLINE_INDEX_COMPLETE:
+			break;
+		case ONLINE_INDEX_CREATION:
+		case ONLINE_INDEX_ABORTED:
+		case ONLINE_INDEX_ABORTED_DROPPED:
+			goto func_exit;
+		}
+        }
 
 	/* Note that we use PAGE_CUR_LE as the search mode, because then
 	the function will return in both low_match and up_match of the
@@ -2952,10 +3016,13 @@ row_ins_sec_index_entry_low(
 
 		DEBUG_SYNC_C("row_ins_sec_index_unique");
 
-		row_ins_sec_mtr_start(&mtr, index);
+		if (row_ins_sec_mtr_start_and_check_if_aborted(
+			&mtr, index, check, search_mode)) {
+			goto func_exit;
+		}
 
 		err = row_ins_scan_sec_index_for_duplicate(
-			flags, index, entry, thr, &mtr, offsets_heap);
+			flags, index, entry, thr, check, &mtr, offsets_heap);
 
 		mtr_commit(&mtr);
 
@@ -2984,7 +3051,10 @@ row_ins_sec_index_entry_low(
 			DBUG_RETURN(err);
 		}
 
-		row_ins_sec_mtr_start(&mtr, index);
+		if (row_ins_sec_mtr_start_and_check_if_aborted(
+			&mtr, index, check, search_mode)) {
+			goto func_exit;
+		}
 
 		DEBUG_SYNC_C("row_ins_sec_index_entry_dup_locks_created");
 
@@ -3580,7 +3650,7 @@ row_ins(
 		*/
 		const unsigned type = index->type;
 		if (index->type & DICT_FTS
-		    || !index->is_committed()) {
+                    || !index->is_committed()) {
 		} else if (!(type & DICT_UNIQUE) || index->n_uniq > 1
 			   || !node->vers_history_row()) {
 

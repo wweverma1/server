@@ -4002,6 +4002,7 @@ row_log_apply(
 	ut_stage_alter_t*	stage)
 {
 	dberr_t		error;
+	row_log_t*	log;
 	row_merge_dup_t	dup = { index, table, NULL, 0 };
 	DBUG_ENTER("row_log_apply");
 
@@ -4029,9 +4030,16 @@ row_log_apply(
 		index->table->drop_aborted = TRUE;
 
 		dict_index_set_online_status(index, ONLINE_INDEX_ABORTED);
+	} else {
+		ut_ad(dup.n_dup == 0);
+		dict_index_set_online_status(index, ONLINE_INDEX_COMPLETE);
 	}
 
+	log = index->online_log;
+	index->online_log = NULL;
 	index->lock.x_unlock();
+
+	row_log_free(log);
 
 	DBUG_RETURN(error);
 }
@@ -4122,7 +4130,7 @@ static rec_t *row_log_vers_undo_match(
       rec_get_nth_field(version, *offsets, index->db_trx_id(), &len));
 
     ut_ad(len == DATA_TRX_ID_LEN);
-    ut_ad(trx_id == rec_info->trx_id);
+    ut_ad(trx_id == rec_info->trx->id);
 
     roll_ptr_t roll_ptr= trx_read_roll_ptr(
       rec_get_nth_field(version, *offsets, index->db_roll_ptr(), &len));
@@ -4214,10 +4222,6 @@ void row_log_insert_handle(const dtuple_t *tuple,
   else
   {
     clust_index->lock.s_unlock();
-    ulint len= 0;
-    trx_id_t trx_id= trx_read_trx_id(
-      rec_get_nth_field(copy_rec, offsets, clust_index->db_trx_id(), &len));
-    ut_ad(len == DATA_TRX_ID_LEN);
     row_ext_t *ext;
     dtuple_t *row= row_build(ROW_COPY_POINTERS, clust_index,
       copy_rec, offsets, table, NULL, NULL, &ext, heap);
@@ -4228,16 +4232,29 @@ void row_log_insert_handle(const dtuple_t *tuple,
     dict_index_t *index= dict_table_get_next_index(clust_index);
     while (index)
     {
-      index->lock.s_lock(SRW_LOCK_CALL);
-      if (index->online_log
-          && index->online_status <= ONLINE_INDEX_CREATION)
+      if (!index->is_committed())
       {
+        index->lock.s_lock(SRW_LOCK_CALL);
         dtuple_t *entry= row_build_index_entry_low(row, ext, index,
                                                    heap, ROW_BUILD_NORMAL);
-        row_log_online_op(index, entry, trx_id);
+        if (index->online_status == ONLINE_INDEX_COMPLETE)
+        {
+          que_fork_t* fork = que_fork_create(heap);
+          fork->trx= const_cast<trx_t*>(rec_info->trx);
+          que_thr_t* thr = que_thr_create(fork, heap, nullptr);
+          index->lock.s_unlock();
+          dberr_t err= row_ins_sec_index_entry(index, entry, thr);
+          ut_a(err == DB_SUCCESS);
+        }
+        else if (index->online_log
+                 && index->online_status == ONLINE_INDEX_CREATION)
+        {
+          row_log_online_op(index, entry, rec_info->trx->id);
+          index->lock.s_unlock();
+        }
+	else index->lock.s_unlock();
       }
 
-      index->lock.s_unlock();
       index= dict_table_get_next_index(index);
     }
   }
@@ -4317,16 +4334,9 @@ void row_log_update_handle(const dtuple_t *tuple,
   rec_offs_make_valid(copy_rec, clust_index, true, offsets);
   mtr.commit();
   dtuple_t *row= nullptr;
-  trx_id_t trx_id;
-  row_ext_t *new_ext;
-  row_ext_t *old_ext;
+  row_ext_t *new_ext= nullptr;
+  row_ext_t *old_ext= nullptr;
   dtuple_t *old_row= nullptr;
-  ulint len;
-
-  trx_id= trx_read_trx_id(
-    rec_get_nth_field(
-      copy_rec, offsets, clust_index->db_trx_id(), &len));
-  ut_ad(len == DATA_TRX_ID_LEN);
   row= row_build(ROW_COPY_POINTERS, clust_index,
                  copy_rec, offsets, clust_index->table, NULL, NULL,
                  &new_ext, heap);
@@ -4354,31 +4364,65 @@ void row_log_update_handle(const dtuple_t *tuple,
   dict_index_t *index= dict_table_get_next_index(clust_index);
   while (index)
   {
-    index->lock.s_lock(SRW_LOCK_CALL);
-    if (index->online_log
-        && index->online_status <= ONLINE_INDEX_CREATION)
+    if (!index->is_committed())
     {
-      if (is_update)
+      index->lock.s_lock(SRW_LOCK_CALL);
+
+      if (is_update && !row_upd_changes_ord_field_binary(
+                          index, rec_info->update, nullptr,
+			  row, new_ext))
+      {
+        index->lock.s_unlock();
+        goto next_index;
+      }
+
+      if (index->online_status == ONLINE_INDEX_COMPLETE)
+      {
+        que_fork_t *fork = que_fork_create(heap);
+        fork->trx= const_cast<trx_t*>(rec_info->trx);
+        que_thr_t *thr = que_thr_create(fork, heap, nullptr);
+        upd_node_t *node= upd_node_create(heap);
+	node->index= index;
+	node->update= rec_info->update;
+	node->state= UPD_NODE_UPDATE_ALL_SEC;
+
+        if (is_update)
+        {
+          node->row= old_row;
+          node->is_delete= NO_DELETE;
+          node->ext= old_ext;
+          node->upd_row= row;
+          node->upd_ext= new_ext;
+        }
+        else
+        {
+          node->row= row;
+          node->ext= new_ext;
+          node->is_delete= PLAIN_DELETE;
+        }
+	index->lock.s_unlock();
+        row_upd_sec_step(node, thr);
+      }
+      else if (index->online_log
+               && index->online_status == ONLINE_INDEX_CREATION)
       {
         dtuple_t *old_entry= row_build_index_entry_low(
-           old_row, old_ext, index, heap, ROW_BUILD_NORMAL);
-
-        row_log_online_op(index, old_entry, 0);
-
-	dtuple_t *new_entry= row_build_index_entry_low(
-           row, new_ext, index, heap, ROW_BUILD_NORMAL);
-
-	row_log_online_op(index, new_entry, trx_id);
-      }
-      else
-      {
-        dtuple_t *old_entry= row_build_index_entry_low(
-           row, new_ext, index, heap, ROW_BUILD_NORMAL);
-
-        row_log_online_op(index, old_entry, 0);
-      }
+          is_update ? old_row : row, is_update ? old_ext : new_ext,
+          index, heap, ROW_BUILD_NORMAL);
+        dtuple_t *new_entry= nullptr;
+        if (is_update)
+        {
+          row_log_online_op(index, old_entry, 0);
+          new_entry= row_build_index_entry_low(
+            row, new_ext, index, heap, ROW_BUILD_NORMAL);
+          row_log_online_op(index, new_entry, rec_info->trx->id);
+        }
+        else
+          row_log_online_op(index, old_entry, 0);
+	index->lock.s_unlock();
+      } else index->lock.s_unlock();
     }
-    index->lock.s_unlock();
+next_index:
     index= dict_table_get_next_index(index);
   }
 }

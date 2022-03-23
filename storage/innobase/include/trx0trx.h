@@ -889,7 +889,6 @@ public:
 					error, or empty. */
 	rw_trx_hash_element_t *rw_trx_hash_element;
 	LF_PINS *rw_trx_hash_pins;
-
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */

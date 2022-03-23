@@ -3915,6 +3915,7 @@ row_merge_drop_indexes(
 				dict_index_set_online_status(
 					index, ONLINE_INDEX_ABORTED_DROPPED);
 				index->lock.x_unlock();
+				table->indexes.start->clear_dummy_log();
 				table->drop_aborted = TRUE;
 				continue;
 			}
@@ -4802,7 +4803,7 @@ func_exit:
 				row_log_abort_sec(indexes[i]);
 				indexes[i]->type |= DICT_CORRUPT;
 				indexes[i]->lock.x_unlock();
-				new_table->indexes.start->online_log= nullptr;
+				new_table->indexes.start->clear_dummy_log();
 				new_table->drop_aborted = TRUE;
 				/* fall through */
 			case ONLINE_INDEX_ABORTED_DROPPED:
