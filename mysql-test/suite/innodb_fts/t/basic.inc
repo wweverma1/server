@@ -9,12 +9,12 @@ CREATE TEMPORARY TABLE articles (
 	FULLTEXT (title,body)
 	) ENGINE=InnoDB;
 
-CREATE TABLE articles (
+eval CREATE TABLE articles (
 	id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 	title VARCHAR(200),
 	body TEXT,
 	FULLTEXT (title,body)
-	) ENGINE=InnoDB;
+	)$create_options ENGINE=InnoDB;
 }
 
 if ($basic_stage == insert_1)

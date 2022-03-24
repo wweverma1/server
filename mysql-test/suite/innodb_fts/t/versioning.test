@@ -1,0 +1,97 @@
+--source include/have_innodb.inc
+
+#
+# Set this to build location of previous revision:
+#
+#   let $OLD_BINDIR= /home/midenok/src/mariadb/10.3b/build;
+#
+# or you can set it as exported shell environment variable:
+#
+#   export OLD_BINDIR="/home/midenok/src/mariadb/10.3b/build"
+#
+
+if (!$OLD_BINDIR)
+{
+  --skip Requires OLD_BINDIR parameter (see test comment)
+}
+
+--echo # Upgrade test
+let $restart_bindir= $OLD_BINDIR;
+--source include/restart_mysqld.inc
+
+let $create_options= with system versioning;
+let $basic_stage= create_table;
+--source basic.inc
+let $basic_stage= insert_1;
+--source basic.inc
+
+let $restart_bindir=;
+--source include/restart_mysqld.inc
+
+--error ER_INDEX_CORRUPT
+SELECT * FROM articles WHERE MATCH (title,body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+
+call mtr.add_suppression("test/articles contains 3 indexes inside InnoDB");
+alter table articles force;
+flush tables;
+show create table articles;
+
+let $basic_stage= select_1;
+--source basic.inc
+
+--echo # Downgrade test
+let $restart_bindir= $OLD_BINDIR;
+--source include/restart_mysqld.inc
+
+alter table articles force;
+flush tables;
+show create table articles;
+
+let $basic_stage= select_1;
+--source basic.inc
+
+--echo # Upgrade test
+let $basic_stage= insert_2;
+--source basic.inc
+
+let $restart_bindir=;
+--source include/restart_mysqld.inc
+
+alter table articles force;
+let $basic_stage= select_2;
+--source basic.inc
+
+--echo # Downgrade test
+let $restart_bindir= $OLD_BINDIR;
+--source include/restart_mysqld.inc
+
+alter table articles force;
+let $basic_stage= select_2;
+--source basic.inc
+
+--echo # Upgrade test
+let $basic_stage= insert_3;
+--source basic.inc
+
+let $restart_bindir=;
+--source include/restart_mysqld.inc
+
+alter table articles force;
+let $basic_stage= select_3;
+--source basic.inc
+
+--echo # Downgrade test
+let $restart_bindir= $OLD_BINDIR;
+--source include/restart_mysqld.inc
+
+alter table articles force;
+let $basic_stage= select_3;
+--source basic.inc
+
+let $restart_bindir=;
+--source include/restart_mysqld.inc
+
+alter table articles force;
+
+drop table articles;
