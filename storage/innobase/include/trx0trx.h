@@ -572,6 +572,33 @@ struct trx_rsegs_t {
 	trx_temp_undo_t	m_noredo;
 };
 
+/** Undo record information like rollback segment id, page_id, offset */
+struct trx_undo_rec_info
+{
+  const trx_t *trx;
+  buf_block_t *block;
+  ulint offset;
+  ulint type;
+  ulint cmpl_info;
+  bool updated_extern;
+  undo_no_t undo_no;
+  trx_undo_rec_t *undo_rec;
+  upd_t *update= nullptr;
+
+  trx_undo_rec_info(const trx_t *trx_, buf_block_t *block_,
+                    ulint offset_):
+                    trx(trx_), block(block_), offset(offset_) {}
+
+  void assign_value(ulint type_, ulint cmpl_info_, bool updated_ext,
+                    undo_no_t undo_no_)
+  {
+    type= type_;
+    cmpl_info= cmpl_info_;
+    updated_extern= updated_ext;
+    undo_no= undo_no_;
+  }
+};
+
 struct trx_t : ilist_node<>
 {
 private:
@@ -891,6 +918,7 @@ public:
 	LF_PINS *rw_trx_hash_pins;
 	ulint		magic_n;
 
+	trx_undo_rec_info *rec_info= nullptr;
 	/** @return whether any persistent undo log has been generated */
 	bool has_logged_persistent() const
 	{
@@ -938,7 +966,7 @@ public:
   inline bool rollback_finish();
 private:
   /** Apply any changes to tables for which online DDL is in progress. */
-  ATTRIBUTE_COLD void apply_log() const;
+  ATTRIBUTE_COLD void apply_log();
   /** Process tables that were modified by the committing transaction. */
   inline void commit_tables();
   /** Mark a transaction committed in the main memory data structures. */

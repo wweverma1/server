@@ -192,7 +192,8 @@ row_vers_impl_x_locked_low(
 		trx_undo_prev_version_build(
 			clust_rec, mtr, version, clust_index, clust_offsets,
 			heap, &prev_version, NULL,
-			dict_index_has_virtual(index) ? &vrow : NULL, 0);
+			dict_index_has_virtual(index) ? &vrow : NULL, 0,
+			caller_trx->rec_info);
 
 		ut_d(trx->mutex_lock());
 		const bool committed = trx_state_eq(

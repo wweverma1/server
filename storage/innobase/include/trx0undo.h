@@ -327,6 +327,7 @@ struct trx_undo_t {
 					segment are chained into lists */
 };
 
+#if 0
 /** Undo record information like rollback segment id, page_id, offset */
 struct trx_undo_rec_info
 {
@@ -353,7 +354,7 @@ struct trx_undo_rec_info
     undo_no= undo_no_;
   }
 };
-
+#endif
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** The offset of the undo log page header on pages of the undo log */
