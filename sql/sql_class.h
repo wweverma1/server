@@ -2916,6 +2916,13 @@ public:
   int binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional);
   int binlog_remove_pending_rows_event(bool clear_maps, bool is_transactional);
 
+  bool binlog_need_stmt_format(bool is_transactional) const
+  {
+    return vers_created_partitions && !binlog_get_pending_rows_event(is_transactional);
+  }
+
+  bool binlog_for_noop_dml(bool transactional_table);
+
   /**
     Determine the binlog format of the current statement.
 
@@ -3564,6 +3571,7 @@ public:
   bool       tablespace_op;	/* This is TRUE in DISCARD/IMPORT TABLESPACE */
   /* True if we have to log the current statement */
   bool	     log_current_statement;
+  uint       vers_created_partitions;
   /**
     True if a slave error. Causes the slave to stop. Not the same
     as the statement execution error (is_error()), since
@@ -7710,24 +7718,25 @@ public:
 void dbug_serve_apcs(THD *thd, int n_calls);
 #endif 
 
-class ScopedStatementReplication
+class StatementBinlog
 {
-public:
-  ScopedStatementReplication(THD *thd) :
-    saved_binlog_format(thd
-                        ? thd->set_current_stmt_binlog_format_stmt()
-                        : BINLOG_FORMAT_MIXED),
-    thd(thd)
-  {}
-  ~ScopedStatementReplication()
-  {
-    if (thd)
-      thd->restore_stmt_binlog_format(saved_binlog_format);
-  }
-
-private:
   const enum_binlog_format saved_binlog_format;
   THD *const thd;
+
+public:
+  StatementBinlog(THD *thd, bool need_stmt) :
+    saved_binlog_format(thd->get_current_stmt_binlog_format()),
+    thd(thd)
+  {
+    if (need_stmt && saved_binlog_format != BINLOG_FORMAT_STMT)
+    {
+      thd->set_current_stmt_binlog_format_stmt();
+    }
+  }
+  ~StatementBinlog()
+  {
+    thd->set_current_stmt_binlog_format(saved_binlog_format);
+  }
 };
 
 

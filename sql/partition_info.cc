@@ -923,6 +923,8 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
 /**
   @brief Run fast_alter_partition_table() to add new history partitions
          for tables requiring them.
+
+  @param num_parts  Number of partitions to create
 */
 bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
 {
@@ -939,6 +941,7 @@ bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
   TABLE *table= tl->table;
 
   DBUG_ASSERT(!thd->is_error());
+  DBUG_ASSERT(num_parts);
 
   {
     DBUG_ASSERT(table->s->get_table_ref_type() == TABLE_REF_BASE_TABLE);
@@ -1027,6 +1030,9 @@ bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
   // NOTE: we have to return DA_EMPTY for new command
   DBUG_ASSERT(thd->get_stmt_da()->is_ok());
   thd->get_stmt_da()->reset_diagnostics_area();
+  thd->variables.option_bits|= OPTION_KEEP_LOG;
+  thd->log_current_statement= true;
+  thd->vers_created_partitions= num_parts;
 
 exit:
   thd->work_part_info= save_part_info;

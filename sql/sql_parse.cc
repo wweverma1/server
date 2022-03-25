@@ -7569,6 +7569,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   query_start_sec_part_used= 0;
   is_fatal_error= time_zone_used= 0;
   log_current_statement= 0;
+  vers_created_partitions= 0;
 
   /*
     Clear the status flag that are expected to be cleared at the
