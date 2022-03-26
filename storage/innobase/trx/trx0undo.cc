@@ -328,16 +328,14 @@ static void trx_undo_rec_apply_update(trx_undo_rec_t *rec,
                                         &info_bits);
   rec= trx_undo_rec_get_row_ref(rec, index, &undo_tuple, heap);
 
+  rec= trx_undo_update_rec_get_update(rec, index, rec_info->type,
+                                      trx_id, roll_ptr, info_bits,
+                                      heap, &rec_info->update);
+  rec_info->undo_rec= rec;
   if (rec_info->type == TRX_UNDO_UPD_DEL_REC)
     row_log_insert_handle(undo_tuple, rec_info, index, heap);
   else
-  {
-    rec= trx_undo_update_rec_get_update(rec, index, rec_info->type,
-                                        trx_id, roll_ptr, info_bits,
-                                        heap, &rec_info->update);
-    rec_info->undo_rec= rec;
     row_log_update_handle(undo_tuple, rec_info, index, heap);
-  }
 }
 
 /** Apply all DML undo log records to the online DDL tables

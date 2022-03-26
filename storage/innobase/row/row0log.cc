@@ -4227,7 +4227,14 @@ void row_log_insert_handle(const dtuple_t *tuple,
       copy_rec, offsets, table, NULL, NULL, &ext, heap);
 
     if (table->n_v_cols)
-      trx_undo_read_v_cols(table, rec_info->undo_rec, row, false);
+    {
+      if (rec_info->type == TRX_UNDO_UPD_DEL_REC)
+        row_upd_replace_vcol(row, table, rec_info->update, false,
+                             nullptr,
+                             (rec_info->cmpl_info & UPD_NODE_NO_ORD_CHANGE)
+                             ? nullptr : rec_info->undo_rec);
+      else trx_undo_read_v_cols(table, rec_info->undo_rec, row, false);
+    }
 
     dict_index_t *index= dict_table_get_next_index(clust_index);
     while (index)
