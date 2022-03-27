@@ -2559,6 +2559,11 @@ void log_slow_statement(THD *thd)
 
 end:
   delete_explain_query(thd->lex);
+  DBUG_EXECUTE_IF("log_slow_statement_end",
+                  if (dbug_user_var_equals_str(thd, "show_explain_probe_query",
+                                               thd->query()))
+                      dbug_serve_apcs(thd, 1);
+                 );
   DBUG_VOID_RETURN;
 }
 
