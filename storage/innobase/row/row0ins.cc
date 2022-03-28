@@ -2900,6 +2900,9 @@ row_ins_sec_index_entry_low(
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
+		if (!index->is_committed()
+		    && index->online_status == ONLINE_INDEX_COMPLETE)
+		   flags = BTR_NO_LOCKING_FLAG;
 		index->set_modified(mtr);
 		if (!dict_index_is_spatial(index)) {
 			search_mode |= BTR_INSERT;
