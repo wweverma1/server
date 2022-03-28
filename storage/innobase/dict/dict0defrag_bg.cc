@@ -189,8 +189,9 @@ static void dict_stats_process_entry_from_defrag_pool(THD *thd)
   memory stats so there's nothing really to write to disk. */
   MDL_ticket *mdl= nullptr;
   if (dict_table_t *table=
-      dict_table_open_on_id(table_id, false, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
-                            thd, &mdl))
+      dict_table_open_on_id<false>(
+		table_id, false, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+                thd, &mdl))
   {
     if (dict_index_t *index= !table->corrupted
         ? dict_table_find_index_on_id(table, index_id) : nullptr)

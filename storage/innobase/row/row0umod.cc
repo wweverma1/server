@@ -1217,8 +1217,8 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 	node->rec_type = type;
 
 	if (node->state == UNDO_UPDATE_PERSISTENT) {
-		node->table = dict_table_open_on_id(table_id, dict_locked,
-						    DICT_TABLE_OP_NORMAL);
+		node->table = dict_table_open_on_id<false>(
+			table_id, dict_locked, DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
 		dict_sys.freeze(SRW_LOCK_CALL);
 		node->table = dict_sys.acquire_temporary_table(table_id);

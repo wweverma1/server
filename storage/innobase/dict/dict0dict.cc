@@ -68,6 +68,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "srv0mon.h"
 #include "srv0start.h"
 #include "trx0undo.h"
+#include "trx0purge.h"
 
 #include <vector>
 #include <algorithm>
@@ -825,6 +826,7 @@ template dict_table_t* dict_acquire_mdl_shared<true>
 @param[in,out]  thd             background thread, or NULL to not acquire MDL
 @param[out]     mdl             mdl ticket, or NULL
 @return table, NULL if does not exist */
+template <bool purge_thd>
 dict_table_t*
 dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       dict_table_op_t table_op, THD *thd,
@@ -837,6 +839,12 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
 
   if (table)
   {
+    if (purge_thd && purge_sys.must_wait_FTS())
+    {
+      table= nullptr;
+      goto func_exit;
+    }
+
     table->acquire();
     if (thd && !dict_locked)
       table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
@@ -853,7 +861,14 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                                  ? DICT_ERR_IGNORE_RECOVER_LOCK
                                  : DICT_ERR_IGNORE_FK_NOKEY);
     if (table)
+    {
+      if (purge_thd && purge_sys.must_wait_FTS())
+      {
+	dict_sys.unlock();
+	return nullptr;
+      }
       table->acquire();
+    }
     if (!dict_locked)
     {
       dict_sys.unlock();
@@ -867,11 +882,21 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
     }
   }
 
+func_exit:
   if (!dict_locked)
     dict_sys.unfreeze();
 
   return table;
 }
+
+template dict_table_t* dict_table_open_on_id<false>
+(table_id_t table_id, bool dict_locked,
+ dict_table_op_t table_op, THD *thd,
+ MDL_ticket **mdl);
+template dict_table_t* dict_table_open_on_id<true>
+(table_id_t table_id, bool dict_locked,
+ dict_table_op_t table_op, THD *thd,
+ MDL_ticket **mdl);
 
 /********************************************************************//**
 Looks for column n position in the clustered index.

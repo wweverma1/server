@@ -1555,7 +1555,7 @@ have any other reference count.
 static void fts_table_no_ref_count(const char *table_name)
 {
   dict_table_t *table= dict_table_open_on_name(
-    table_name, false, DICT_ERR_IGNORE_TABLESPACE);
+    table_name, true, DICT_ERR_IGNORE_TABLESPACE);
   if (!table)
     return;
 
@@ -1572,8 +1572,10 @@ and common table associated with the fts table.
 			already stopped*/
 void purge_sys_t::stop_FTS(const dict_table_t &table, bool already_stopped)
 {
+  dict_sys.lock(SRW_LOCK_CALL);
   if (!already_stopped)
     purge_sys.stop_FTS();
+
   fts_table_t fts_table;
   char table_name[MAX_FULL_NAME_LEN];
 
@@ -1582,15 +1584,19 @@ void purge_sys_t::stop_FTS(const dict_table_t &table, bool already_stopped)
   for (const char **suffix= fts_common_tables; *suffix; suffix++)
   {
     fts_table.suffix= *suffix;
-    fts_get_table_name(&fts_table, table_name, false);
+    fts_get_table_name(&fts_table, table_name, true);
     fts_table_no_ref_count(table_name);
   }
 
   if (!table.fts)
+  {
+func_exit:
+    dict_sys.unlock();
     return;
+  }
   auto indexes= table.fts->indexes;
   if (!indexes)
-    return;
+    goto func_exit;
   for (ulint i= 0;i < ib_vector_size(indexes); ++i)
   {
     const dict_index_t *index= static_cast<const dict_index_t*>(
@@ -1600,10 +1606,11 @@ void purge_sys_t::stop_FTS(const dict_table_t &table, bool already_stopped)
          s->suffix; s++)
     {
       fts_table.suffix= s->suffix;
-      fts_get_table_name(&fts_table, table_name, false);
+      fts_get_table_name(&fts_table, table_name, true);
       fts_table_no_ref_count(table_name);
     }
   }
+  goto func_exit;
 }
 
 /** Lock the internal FTS_ tables for table, before fts_drop_tables().

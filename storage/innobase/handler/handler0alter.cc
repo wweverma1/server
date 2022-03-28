@@ -10187,7 +10187,7 @@ static dict_table_t *innobase_reload_table(THD *thd, dict_table_t *table,
   const table_id_t id= table->id;
   table->release();
   dict_sys.remove(table);
-  return dict_table_open_on_id(id, true, DICT_TABLE_OP_NORMAL);
+  return dict_table_open_on_id<false>(id, true, DICT_TABLE_OP_NORMAL);
 }
 
 /** Commit the changes made during prepare_inplace_alter_table()

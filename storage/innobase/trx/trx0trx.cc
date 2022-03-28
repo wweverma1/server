@@ -599,7 +599,7 @@ trx_resurrect_table_locks(
 	mtr.commit();
 
 	for (auto p : tables) {
-		if (dict_table_t* table = dict_table_open_on_id(
+		if (dict_table_t* table = dict_table_open_on_id<false>(
 			    p.first, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE)) {
 			if (!table->is_readable()) {
 				dict_sys.lock(SRW_LOCK_CALL);

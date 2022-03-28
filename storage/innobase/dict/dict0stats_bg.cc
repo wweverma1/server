@@ -308,8 +308,9 @@ next_table_id_with_mutex:
 
 process:
   MDL_ticket *mdl= nullptr;
-  dict_table_t *table= dict_table_open_on_id(table_id, false,
-                                             DICT_TABLE_OP_NORMAL, thd, &mdl);
+  dict_table_t *table= dict_table_open_on_id<false>(table_id, false,
+                                                    DICT_TABLE_OP_NORMAL,
+						    thd, &mdl);
   if (!table)
   {
 invalid_table_id:

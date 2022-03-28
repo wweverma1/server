@@ -2401,7 +2401,7 @@ i_s_fts_deleted_generic_fill(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	MDL_ticket* mdl_ticket = nullptr;
-	user_table = dict_table_open_on_id(
+	user_table = dict_table_open_on_id<false>(
 		innodb_ft_aux_table_id, false, DICT_TABLE_OP_NORMAL,
 		thd, &mdl_ticket);
 
@@ -2770,7 +2770,7 @@ i_s_fts_index_cache_fill(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	MDL_ticket* mdl_ticket = nullptr;
-	user_table = dict_table_open_on_id(
+	user_table = dict_table_open_on_id<false>(
 		innodb_ft_aux_table_id, false, DICT_TABLE_OP_NORMAL,
 		thd, &mdl_ticket);
 
@@ -3210,7 +3210,7 @@ i_s_fts_index_table_fill(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	MDL_ticket* mdl_ticket = nullptr;
-	user_table = dict_table_open_on_id(
+	user_table = dict_table_open_on_id<false>(
 		innodb_ft_aux_table_id, false, DICT_TABLE_OP_NORMAL,
 		thd, &mdl_ticket);
 
@@ -3359,7 +3359,7 @@ i_s_fts_config_fill(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	MDL_ticket* mdl_ticket = nullptr;
-	user_table = dict_table_open_on_id(
+	user_table = dict_table_open_on_id<false>(
 		innodb_ft_aux_table_id, false, DICT_TABLE_OP_NORMAL,
 		thd, &mdl_ticket);
 

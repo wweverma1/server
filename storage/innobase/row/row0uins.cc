@@ -78,9 +78,10 @@ restart:
 	ut_ad(!table_id || dict_locked
 	      || !node->trx->dict_operation_lock_mode);
 	dict_table_t *table = table_id
-		? dict_table_open_on_id(table_id, dict_locked,
-					DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
-					node->trx->mysql_thd, &mdl_ticket)
+		? dict_table_open_on_id<false>(
+			table_id, dict_locked,
+			DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+			node->trx->mysql_thd, &mdl_ticket)
 		: nullptr;
 
 	ut_ad(index->is_primary());
@@ -420,8 +421,8 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 
 	node->update = NULL;
 	if (node->state == UNDO_INSERT_PERSISTENT) {
-		node->table = dict_table_open_on_id(table_id, dict_locked,
-						    DICT_TABLE_OP_NORMAL);
+		node->table = dict_table_open_on_id<false>(
+				table_id, dict_locked, DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
 		dict_sys.freeze(SRW_LOCK_CALL);
 		node->table = dict_sys.acquire_temporary_table(table_id);
