@@ -383,7 +383,7 @@ static void trx_undo_rec_apply_log(trx_undo_rec_t *rec,
 
 
 /** Apply any changes to tables for which online DDL is in progress. */
-ATTRIBUTE_COLD void trx_t::apply_log()
+ATTRIBUTE_COLD void trx_t::apply_log() const
 {
   if (undo_no == 0 || apply_online_log == false)
     return;
@@ -411,13 +411,11 @@ ATTRIBUTE_COLD void trx_t::apply_log()
     while (rec)
     {
       trx_undo_rec_info undo_rec_info(this, block, page_offset(rec));
-      rec_info= &undo_rec_info;
       trx_undo_rec_apply_log(rec, online_log_tables, &undo_rec_info,
 		             heap);
       rec= trx_undo_page_get_next_rec(block, page_offset(rec),
                                       page_id.page_no(),
                                       undo->hdr_offset);
-      rec_info= nullptr;
     }
 
     uint32_t next= mach_read_from_4(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
