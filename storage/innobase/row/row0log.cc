@@ -4326,6 +4326,9 @@ void row_log_update_handle(const dtuple_t *tuple,
     mtr.commit();
 
     clust_index->lock.s_lock(SRW_LOCK_CALL);
+    /* Recheck whether clustered index online log has been cleared */
+    if (clust_index->online_log == nullptr)
+      goto clust_exit;
     if (is_update)
     {
       const dtuple_t *rebuilt_old_pk= row_log_table_get_pk(
@@ -4334,6 +4337,7 @@ void row_log_update_handle(const dtuple_t *tuple,
     }
     else
       row_log_table_delete(prev_copy_rec, clust_index, prev_offsets, nullptr);
+clust_exit:
     clust_index->lock.s_unlock();
     return;
   }
