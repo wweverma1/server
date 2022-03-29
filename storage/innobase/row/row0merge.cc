@@ -853,7 +853,7 @@ row_merge_dup_report(
 	row_merge_dup_t*	dup,	/*!< in/out: for reporting duplicates */
 	const dfield_t*		entry)	/*!< in: duplicate index entry */
 {
-	if (!dup->n_dup++) {
+	if (!dup->n_dup++ && dup->table) {
 		/* Only report the first duplicate record,
 		but count all duplicate records. */
 		innobase_fields_to_mysql(dup->table, dup->index, entry);
@@ -4802,7 +4802,6 @@ func_exit:
 				row_log_abort_sec(indexes[i]);
 				indexes[i]->type |= DICT_CORRUPT;
 				indexes[i]->lock.x_unlock();
-				new_table->indexes.start->online_log= nullptr;
 				new_table->drop_aborted = TRUE;
 				/* fall through */
 			case ONLINE_INDEX_ABORTED_DROPPED:
@@ -4811,6 +4810,8 @@ func_exit:
 					MONITOR_BACKGROUND_DROP_INDEX);
 			}
 		}
+
+		new_table->indexes.start->clear_dummy_log();
 	}
 
 	DBUG_EXECUTE_IF("ib_index_crash_after_bulk_load", DBUG_SUICIDE(););

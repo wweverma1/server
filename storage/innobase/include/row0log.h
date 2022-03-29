@@ -83,16 +83,15 @@ inline void row_log_abort_sec(dict_index_t *index)
   index->online_log= nullptr;
 }
 
-/******************************************************//**
-Logs an operation to a secondary index that is (or was) being created. */
-void
-row_log_online_op(
-/*==============*/
-	dict_index_t*	index,	/*!< in/out: index, S or X latched */
-	const dtuple_t*	tuple,	/*!< in: index tuple (NULL=empty the index) */
-	trx_id_t	trx_id)	/*!< in: transaction ID for insert,
-				or 0 for delete */
-	ATTRIBUTE_COLD;
+/** Logs an operation to a secondary index that is (or was) being created.
+@param	index	index, S or X latched
+@param	tuple	index tuple (NULL= empty the index)
+@param	trx_id	transaction ID for insert, or 0 for delete
+@retval false if row_log_apply() failure happens
+or true otherwise */
+bool
+row_log_online_op(dict_index_t *index, const dtuple_t *tuple,
+		  trx_id_t trx_id) ATTRIBUTE_COLD;
 
 /******************************************************//**
 Gets the error status of the online index rebuild log.
@@ -231,6 +230,11 @@ row_log_apply(
 @param	 index	index whose n_core_fields of log to be accessed
 @return number of n_core_fields */
 unsigned row_log_get_n_core_fields(const dict_index_t *index);
+
+/** Get the error code of online log for the index
+@param	index	online index
+@return error code present in online log */
+dberr_t row_log_get_error(const dict_index_t *index);
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Estimate how much work is to be done by the log apply phase

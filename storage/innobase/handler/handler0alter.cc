@@ -11007,6 +11007,7 @@ lock_fail:
 			}
 		}
 	} else {
+		dberr_t error= DB_SUCCESS;
 		for (inplace_alter_handler_ctx** pctx= ctx_array; *pctx;
 		     pctx++) {
 			auto ctx= static_cast<ha_innobase_inplace_ctx*>(*pctx);
@@ -11023,13 +11024,21 @@ lock_fail:
                                   continue;
 
 				index->lock.x_lock(SRW_LOCK_CALL);
-				ut_ad(index->online_log);
+				if (index->online_log == nullptr) {
+					/* online log would've cleared
+					when we detect the error in
+					other index */
+					index->lock.x_unlock();
+					continue;
+				}
 
-				dberr_t error = row_log_apply(
-					m_prebuilt->trx, index, altered_table,
-					ctx->m_stage);
-
-				if (error != DB_SUCCESS) {
+				if (index->is_corrupted()) {
+					/* Online index log has been
+					preserved to show the error
+					when it happened via
+					row_log_apply() by DML thread */
+					error= row_log_get_error(index);
+err_index:
 					ctx->log_handle_failure(
 						ha_alter_info,
 						altered_table, error);
@@ -11046,10 +11055,16 @@ lock_fail:
 					DBUG_RETURN(true);
 				}
 
+				error = row_log_apply(
+					m_prebuilt->trx, index, altered_table,
+					ctx->m_stage);
+
+				if (error != DB_SUCCESS) {
+					goto err_index;
+				}
+
 				row_log_free(index->online_log);
 				index->online_log= nullptr;
-				dict_index_set_online_status(
-					index, ONLINE_INDEX_COMPLETE);
 				index->lock.x_unlock();
 			}
 
