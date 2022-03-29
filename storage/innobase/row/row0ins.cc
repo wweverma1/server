@@ -899,7 +899,8 @@ row_ins_foreign_fill_virtual(
 	if (index->table->vc_templ == NULL) {
 		/** This can occur when there is a cascading
 		delete or update after restart. */
-		innobase_init_vc_templ(index->table);
+		TABLE *maria_table= innobase_init_vc_templ(index->table);
+		ut_ad(maria_table);
 	}
 
 	ib_vcol_row vc(NULL);

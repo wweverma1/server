@@ -1113,6 +1113,12 @@ try_again:
 		node->vcol_info.set_requested();
 		node->vcol_info.set_used();
 		node->vcol_info.set_table(innobase_init_vc_templ(node->table));
+                if (!node->vcol_info.table())
+                {
+                  node->table->vc_templ= NULL;
+                  node->table= NULL;
+                  goto table_not_found;
+                }
 		node->vcol_info.set_used();
 	}
 
@@ -1133,6 +1139,7 @@ inaccessible:
 		node->table = NULL;
 err_exit:
 		rw_lock_s_unlock(&dict_sys.latch);
+table_not_found:
 		node->skip(table_id, trx_id);
 		return(false);
 	}

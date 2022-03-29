@@ -20490,12 +20490,14 @@ static TABLE* innodb_acquire_mdl(THD* thd, dict_table_t* table)
 	char	tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
 	ulint	db_buf_len, db_buf1_len;
 	ulint	tbl_buf_len, tbl_buf1_len;
-
 	if (!table_name_parse(table->name, db_buf, tbl_buf,
 			      db_buf_len, tbl_buf_len)) {
 		table->release();
 		return NULL;
 	}
+
+
+	usleep(random() % 2000);
 
 	DEBUG_SYNC(thd, "ib_purge_virtual_latch_released");
 
@@ -20510,8 +20512,11 @@ retry_mdl:
 
 	TABLE*	mariadb_table = open_purge_table(thd, db_buf, db_buf_len,
 						 tbl_buf, tbl_buf_len);
-	if (!mariadb_table)
+	if (!mariadb_table) {
+		ut_ad(thd_get_error_number(current_thd) == ER_NO_SUCH_TABLE);
 		thd_clear_error(thd);
+        }
+        usleep(random() % 2000);
 
 	DEBUG_SYNC(thd, "ib_purge_virtual_got_no_such_table");
 
@@ -20622,8 +20627,7 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 
 	TABLE	*mysql_table= innodb_find_table_for_vc(current_thd, table);
 
-	ut_ad(mysql_table);
-	if (!mysql_table) {
+	if (unlikely(!mysql_table)) {
 		DBUG_RETURN(NULL);
 	}
 
