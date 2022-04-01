@@ -8100,8 +8100,10 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
 
   if (h->keyread_enabled())
     DBUG_RETURN(0);
-
-  /* TODO: this imposes memory leak until table flush */
+  /*
+    TODO: this may impose memory leak until table flush.
+          See comment in Field::set_default().
+  */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
 
   /* When reading or deleting row, ignore errors from virtual columns */
@@ -8208,7 +8210,10 @@ int TABLE::update_virtual_field(Field *vf)
   Query_arena backup_arena;
   Counting_error_handler count_errors;
   in_use->push_internal_handler(&count_errors);
-  /* TODO: this imposes memory leak until table flush */
+  /*
+    TODO: this may impose memory leak until table flush.
+          See comment in Field::set_default().
+  */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
@@ -8247,7 +8252,10 @@ int TABLE::update_default_fields(bool ignore_errors)
   DBUG_ENTER("TABLE::update_default_fields");
   DBUG_ASSERT(default_field);
 
-  /* TODO: this imposes memory leak until table flush */
+  /*
+    TODO: this may impose memory leak until table flush.
+          See comment in Field::set_default().
+  */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
 
   /* Iterate over fields with default functions in the table */

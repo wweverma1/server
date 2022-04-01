@@ -1406,7 +1406,7 @@ public:
   bool insert_or_update;             /* Can be used by the handler */
   /*
      NOTE: alias_name_used is only a hint! It works only in need_correct_ident()
-     condition. On other cases it is FALSE even if table_name is alias!
+     condition. On other cases it is FALSE even if table_name is alias.
   */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
