@@ -3026,7 +3026,6 @@ class Vcol_expr_context
   bool old_want_privilege;
   Security_context *save_security_ctx;
   sql_mode_t save_sql_mode;
-  Silence_warnings disable_warnings;
 
 public:
   Vcol_expr_context(THD *_thd, TABLE *_table) :
@@ -3057,7 +3056,6 @@ bool Vcol_expr_context::init()
     return true;
   }
 
-  thd->push_internal_handler(&disable_warnings);
   table->grant.want_privilege= false;
   lex.sql_command= old_lex->sql_command;
   thd->variables.sql_mode= 0;
@@ -3081,7 +3079,6 @@ Vcol_expr_context::~Vcol_expr_context()
   if (!inited)
     return;
   table->grant.want_privilege= old_want_privilege;
-  thd->pop_internal_handler();
   end_lex_with_single_table(thd, table, old_lex);
   table->map= old_map;
   thd->security_ctx= save_security_ctx;
