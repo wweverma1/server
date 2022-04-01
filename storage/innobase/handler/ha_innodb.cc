@@ -20589,8 +20589,9 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 		rw_lock_s_unlock(&dict_sys.latch);
 		return innodb_acquire_mdl(thd, table);
 	} else {
-		if (table->vc_templ->mysql_table_query_id
-		    == thd_get_query_id(thd)) {
+		if (table->vc_templ != NULL) {
+			ut_d(uint64_t qid= thd_get_query_id(thd));
+			ut_ad(table->vc_templ->mysql_table_query_id == qid);
 			return table->vc_templ->mysql_table;
 		}
 	}
@@ -20623,7 +20624,6 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 	}
 	DBUG_ENTER("innobase_init_vc_templ");
 
-	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 
 	TABLE	*mysql_table= innodb_find_table_for_vc(current_thd, table);
 
@@ -20632,6 +20632,7 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 	}
 
 	mutex_enter(&dict_sys.mutex);
+	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL, true);
 	mutex_exit(&dict_sys.mutex);
 	DBUG_RETURN(mysql_table);

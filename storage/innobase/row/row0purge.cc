@@ -1115,7 +1115,6 @@ try_again:
 		node->vcol_info.set_table(innobase_init_vc_templ(node->table));
                 if (!node->vcol_info.table())
                 {
-                  node->table->vc_templ= NULL;
                   node->table= NULL;
                   goto table_not_found;
                 }
