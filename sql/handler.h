@@ -1812,6 +1812,9 @@ struct handlerton
   int (*create_partitioning_metadata)(const char *path,
                                       const char *old_path,
                                       chf_create_flags action_flag);
+
+  /** Disable or enable the internal writes of a storage engine */
+  void (*disable_internal_writes)(bool disable);
 };
 
 
@@ -5364,6 +5367,8 @@ int ha_delete_table_force(THD *thd, const char *path, const LEX_CSTRING *db,
 void ha_prepare_for_backup();
 void ha_end_backup();
 void ha_pre_shutdown();
+
+void ha_disable_internal_writes(bool disable);
 
 /* statistics and info */
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
