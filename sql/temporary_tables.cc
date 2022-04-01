@@ -1142,6 +1142,13 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   table->pos_in_table_list= 0;
   table->query_id= query_id;
 
+  if (table->vcol_fix_expr(this))
+  {
+    my_free(table);
+    DBUG_RETURN(NULL);
+  }
+
+
   /* Add table to the head of table list. */
   share->all_tmp_tables.push_front(table);
 
