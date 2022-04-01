@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,6 +37,9 @@ Created Apr 25, 2012 Vasil Dimov
 # include "wsrep.h"
 # include "log.h"
 # include "wsrep_mysqld.h"
+extern Atomic_relaxed<bool> wsrep_sst_disable_writes;
+#else
+constexpr bool wsrep_sst_disable_writes= false;
 #endif
 
 #include <vector>
@@ -489,6 +492,11 @@ DECLARE_THREAD(dict_stats_thread)(void*)
 		os_event_reset(). */
 		os_event_wait_time(
 			dict_stats_event, MIN_RECALC_INTERVAL * 1000000);
+
+		if (wsrep_sst_disable_writes) {
+			os_thread_sleep(1000000);
+			continue;
+		}
 
 #ifdef UNIV_DEBUG
 		while (innodb_dict_stats_disabled_debug) {
